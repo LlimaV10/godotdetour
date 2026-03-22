@@ -1,70 +1,53 @@
-extends Camera
+extends Camera3D
 
-# Exports
-export (float, 0.0, 1.0) var sensitivity :float = 0.5
-export (float, 0.001, 0.999) var mouseSmoothness :float = 0.7
-export (float, 0.0, 10.0) var speed :float = 7.0
-export (float, 0.0, 360.0) var yawLimit :float = 360.0
-export (float, 0.0, 360.0) var pitchLimit :float = 360.0
+@export_range(0.01, 2.0, 0.01) var sensitivity: float = 0.12
+@export_range(0.1, 20.0, 0.1) var speed: float = 8.0
+@export_range(0.0, 89.0, 0.1) var pitch_limit: float = 80.0
 
-# Private vars
-var _mousePos := Vector2(0.0, 0.0)
-var _yaw :float = 0.0 
-var _pitch :float = 0.0
-var _totalYaw :float = 0.0
-var _totalPitch :float = 0.0
-var _movement := Vector3(0.0, 0.0, 0.0)
+var _mouse_delta := Vector2.ZERO
+var _pitch := 0.0
 
-# Called when the node enters the scene tree for the first time.
 func _ready() -> void:
-	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
-	pass
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
-# Handle input
-func _input(event: InputEvent) -> void:
-	# Facing
+func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
-		_mousePos = event.relative
-	
-	# Movement
-	if event is InputEventKey:
-		if event.is_action("move_forward"):
-			_movement.z = -1.0 if event.pressed else 0.0
-		if event.is_action("move_back"):
-			_movement.z = 1.0 if event.pressed else 0.0
-		if event.is_action("strafe_left"):
-			_movement.x = -1.0 if event.pressed else 0.0
-		if event.is_action("strafe_right"):
-			_movement.x = 1.0 if event.pressed else 0.0
-		if event.is_action("up"):
-			_movement.y = 1.0 if event.pressed else 0.0
-		if event.is_action("down"):
-			_movement.y = -1.0 if event.pressed else 0.0
+		_mouse_delta += event.relative
+	elif event.is_action_pressed("ui_cancel"):
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
-# Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta: float) -> void:
-	# Update looking direction
-	_mousePos *= sensitivity
-	_yaw = _yaw * mouseSmoothness + _mousePos.x * (1.0 - mouseSmoothness)
-	_pitch = _pitch * mouseSmoothness + _mousePos.y * (1.0 - mouseSmoothness)
-	_mousePos = Vector2(0.0, 0.0)
-	
-	# Apply yaw & pitch limits
-	if yawLimit < 360.0:
-		_yaw = clamp(_yaw, -yawLimit - _totalYaw, yawLimit - _totalYaw)
-	if pitchLimit < 360.0:
-		_pitch = clamp(_pitch, -pitchLimit - _totalPitch, pitchLimit - _totalPitch)
-	
-	# Set final yaw & pitch values
-	_totalYaw += _yaw
-	_totalPitch += _pitch
-	
-	# Rotate
-	rotate_y(deg2rad(-_yaw))
-	rotate_object_local(Vector3(1,0,0), deg2rad(-_pitch))
-	
-	# Move
-	var movement :Vector3 = _movement.normalized()
-	movement *= speed
-	translate(movement * delta)
-	
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		_rotate_camera(delta)
+	_move_camera(delta)
+
+func _rotate_camera(_delta: float) -> void:
+	if _mouse_delta == Vector2.ZERO:
+		return
+
+	rotate_y(deg_to_rad(-_mouse_delta.x * sensitivity))
+	_pitch = clamp(_pitch - _mouse_delta.y * sensitivity, -pitch_limit, pitch_limit)
+	rotation_degrees.x = _pitch
+	_mouse_delta = Vector2.ZERO
+
+func _move_camera(delta: float) -> void:
+	var input := Vector3.ZERO
+	if Input.is_action_pressed("move_forward"):
+		input.z -= 1.0
+	if Input.is_action_pressed("move_back"):
+		input.z += 1.0
+	if Input.is_action_pressed("strafe_left"):
+		input.x -= 1.0
+	if Input.is_action_pressed("strafe_right"):
+		input.x += 1.0
+	if Input.is_action_pressed("up"):
+		input.y += 1.0
+	if Input.is_action_pressed("down"):
+		input.y -= 1.0
+
+	if input == Vector3.ZERO:
+		return
+
+	global_position += global_basis * input.normalized() * speed * delta

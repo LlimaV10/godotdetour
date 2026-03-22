@@ -1,244 +1,204 @@
 #ifndef DETOURNAVIGATIONMESH_H
 #define DETOURNAVIGATIONMESH_H
 
-#include <Godot.hpp>
-#include <Vector2.hpp>
+#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/classes/ref_counted.hpp>
+#include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/vector2.hpp>
+
+#include <map>
 #include <vector>
+
 #include "detourcrowdagent.h"
 
 class DetourInputGeometry;
-class dtTileCache;
+class dtCrowd;
+class dtCrowdAgent;
 class dtNavMesh;
 class dtNavMeshQuery;
-class dtCrowd;
-class rcConfig;
-class RecastContext;
+class dtTileCache;
 class GodotDetourDebugDraw;
-struct MeshProcess;
-struct rcConfig;
-struct LinearAllocator;
+class RecastContext;
+class rcConfig;
 struct FastLZCompressor;
+struct LinearAllocator;
+struct MeshProcess;
 struct TileCacheData;
 
-namespace godot
-{
-    class MeshInstance;
-    class DetourObstacle;
-    class File;
+namespace godot {
 
-    /**
-     * @brief Parameters to initialize a DetourNavigationMesh.
-     */
-    struct DetourNavigationMeshParameters : public Reference
-    {
-        GODOT_CLASS(DetourNavigationMeshParameters, Reference)
+class DetourObstacle;
 
-    public:
-        /**
-         * @brief Called when .new() is called in gdscript
-         */
-        void _init() {}
+class DetourNavigationMeshParameters : public RefCounted {
+    GDCLASS(DetourNavigationMeshParameters, RefCounted)
 
-        static void _register_methods();
+public:
+    static void _bind_methods();
 
-        // It is important to understand that recast/detour operates on a voxel field internally.
-        // The size of a single voxel (often called cell internally) has significant influence on how a navigation mesh is created.
-        // A tile is a rectangular region within the navigation mesh. In other words, every navmesh is divided into equal-sized tiles, which are in turn divided into cells.
-        // The detail mesh is a mesh used for determining surface height on the polygons of the navigation mesh.
-        // Units are usually in world units [wu] (e.g. meters, or whatever you use), but some may be in voxel units [vx] (multiples of cellSize).
-        Vector2     cellSize;               // x = width & depth of a single cell (only one value as both must be the same) | y = height of a single cell. [wu]
-        int         maxNumAgents;           // How many agents this mesh can manage at once.
-        float       maxAgentSlope;          // How steep an angle can be to still be considered walkable. In degree. Max 90.0.
-        float       maxAgentHeight;         // The maximum height of an agent supported in this navigation mesh. [wu]
-        float       maxAgentClimb;          // How high a single "stair" can be to be considered walkable by an agent. [wu]
-        float       maxAgentRadius;         // The maximum radius of an agent in this navigation mesh. [wu]
-        float       maxEdgeLength;          // The maximum allowed length for contour edges along the border of the mesh. [wu]
-        float       maxSimplificationError; // The maximum distance a simplified contour's border edges should deviate the original raw contour. [vx]
-        int         minNumCellsPerIsland;   // How many cells an isolated area must at least have to become part of the navmesh.
-        int         minCellSpanCount;       // Any regions with a span count smaller than this value will, if possible, be merged with larger regions.
-        int         maxVertsPerPoly;        // Maximum number of vertices per polygon in the navigation mesh.
-        int         tileSize;               // The width,depth & height of a single tile. [vx]
-        int         layersPerTile;          // How many vertical layers a single tile is expected to have. Should be less for "flat" levels, more for something like tall, multi-floored buildings.
-        float       detailSampleDistance;   // The sampling distance to use when generating the detail mesh. [wu]
-        float       detailSampleMaxError;   // The maximum allowed distance the detail mesh should deviate from the source data. [wu]
-    };
+    void set_cell_size(const Vector2 &p_value);
+    Vector2 get_cell_size() const;
+    void set_max_num_agents(int p_value);
+    int get_max_num_agents() const;
+    void set_max_agent_slope(float p_value);
+    float get_max_agent_slope() const;
+    void set_max_agent_height(float p_value);
+    float get_max_agent_height() const;
+    void set_max_agent_climb(float p_value);
+    float get_max_agent_climb() const;
+    void set_max_agent_radius(float p_value);
+    float get_max_agent_radius() const;
+    void set_max_edge_length(float p_value);
+    float get_max_edge_length() const;
+    void set_max_simplification_error(float p_value);
+    float get_max_simplification_error() const;
+    void set_min_num_cells_per_island(int p_value);
+    int get_min_num_cells_per_island() const;
+    void set_min_cell_span_count(int p_value);
+    int get_min_cell_span_count() const;
+    void set_max_verts_per_poly(int p_value);
+    int get_max_verts_per_poly() const;
+    void set_tile_size(int p_value);
+    int get_tile_size() const;
+    void set_layers_per_tile(int p_value);
+    int get_layers_per_tile() const;
+    void set_detail_sample_distance(float p_value);
+    float get_detail_sample_distance() const;
+    void set_detail_sample_max_error(float p_value);
+    float get_detail_sample_max_error() const;
 
-    // Helper struct to store convex volume data
-    struct ConvexVolumeData
-    {
-        Array           vertices;
-        float           height;
-        unsigned char   areaType;
-    };
+    Vector2 cellSize;
+    int maxNumAgents = 256;
+    float maxAgentSlope = 0.0f;
+    float maxAgentHeight = 0.0f;
+    float maxAgentClimb = 0.0f;
+    float maxAgentRadius = 0.0f;
+    float maxEdgeLength = 0.0f;
+    float maxSimplificationError = 0.0f;
+    int minNumCellsPerIsland = 0;
+    int minCellSpanCount = 0;
+    int maxVertsPerPoly = 0;
+    int tileSize = 0;
+    int layersPerTile = 0;
+    float detailSampleDistance = 0.0f;
+    float detailSampleMaxError = 0.0f;
+};
 
-    // Helper struct for changed tiles
-    struct ChangedTileLayerData
-    {
-        int                 ref;
-        int                 layer;
-        bool                doAll;
-    };
+struct ConvexVolumeData {
+    Array vertices;
+    float height;
+    unsigned char areaType;
+};
 
-    // Helper struct to store data about changed tile layers
-    struct ChangedTileLayers
-    {
-        std::pair<int, int>                 tilePos;
-        std::vector<ChangedTileLayerData>   layers;
-    };
+struct ChangedTileLayerData {
+    int ref;
+    int layer;
+    bool doAll;
+};
 
-    /**
-     * @brief Representation of a single TileMesh and Crowd.
-     */
-    class DetourNavigationMesh : public Reference
-    {
-        GODOT_CLASS(DetourNavigationMesh, Reference)
+struct ChangedTileLayers {
+    std::pair<int, int> tilePos;
+    std::vector<ChangedTileLayerData> layers;
+};
 
-    public:
-        static void _register_methods();
+class DetourNavigationMesh : public RefCounted {
+    GDCLASS(DetourNavigationMesh, RefCounted)
 
-        /**
-         * @brief Constructor.
-         */
-        DetourNavigationMesh();
+public:
+    static void _bind_methods();
 
-        /**
-         * @brief Destructor.
-         */
-        ~DetourNavigationMesh();
+    DetourNavigationMesh();
+    ~DetourNavigationMesh();
 
-        /**
-         * @brief Called when .new() is called in gdscript
-         */
-        void _init() {}
+    bool initialize(DetourInputGeometry *inputGeom, Ref<DetourNavigationMeshParameters> params, int maxObstacles, RecastContext *recastContext, int index);
+    bool save(Ref<FileAccess> targetFile);
+    bool load(DetourInputGeometry *inputGeom, RecastContext *recastContext, Ref<FileAccess> sourceFile);
+    void rebuildChangedTiles(const std::vector<int> &removedMarkedAreaIDs, const std::vector<int> &removedOffMeshConnections);
+    bool addAgent(Ref<DetourCrowdAgent> agent, Ref<DetourCrowdAgentParameters> parameters, bool main = true);
+    void removeAgent(dtCrowdAgent *agent);
+    void addObstacle(Ref<DetourObstacle> obstacle);
+    void update(float timeDeltaSeconds);
+    void createDebugMesh(GodotDetourDebugDraw *debugDrawer, bool drawCacheBounds);
+    dtCrowd *getCrowd();
+    float getActorFitFactor(float agentRadius, float agentHeight);
 
-        /**
-         * @brief initialize    Initializes the navigation mesh & crowd.
-         * @param inputGeom     The input geometry.
-         * @param params        The parameters for setting up this navigation mesh + crowd.
-         * @param maxObstacles  The maximum amount of obstacles supported.
-         * @return True if everything was successful. False otherwise.
-         */
-        bool initialize(DetourInputGeometry* inputGeom, Ref<DetourNavigationMeshParameters> params, int maxObstacles, RecastContext* recastContext, int index);
+    bool initialize_crowd() { return initializeCrowd(); }
+    void rebuild_changed_tiles(const std::vector<int> &removed_marked_area_ids, const std::vector<int> &removed_off_mesh_connections) { rebuildChangedTiles(removed_marked_area_ids, removed_off_mesh_connections); }
+    bool add_agent(Ref<DetourCrowdAgent> agent, Ref<DetourCrowdAgentParameters> parameters, bool main = true) { return addAgent(agent, parameters, main); }
+    void add_obstacle(const Ref<DetourObstacle> &obstacle) { addObstacle(obstacle); }
+    void create_debug_mesh(GodotDetourDebugDraw *debugDrawer, bool drawCacheBounds) { createDebugMesh(debugDrawer, drawCacheBounds); }
+    dtCrowd *get_crowd() { return getCrowd(); }
+    float get_actor_fit_factor(float agentRadius, float agentHeight) { return getActorFitFactor(agentRadius, agentHeight); }
 
-        /**
-         * @brief Will save this navmesh's current state to the passed file.
-         * @param targetFile The file to append data to.
-         * @return True if everything worked out, false otherwise.
-         */
-        bool save(Ref<godot::File> targetFile);
+private:
+    bool initializeCrowd();
+    int rasterizeTileLayers(int tileX, int tileZ, const rcConfig &cfg, TileCacheData *tiles, int maxTiles);
+    void debugDrawTiles(GodotDetourDebugDraw *debugDrawer);
+    void debugDrawObstacles(GodotDetourDebugDraw *debugDrawer);
 
-        /**
-         * @brief Loads and initializes the navmesh from the file.
-         * @param sourceFile The file to read data from.
-         * @return True if everything worked out, false otherwise.
-         */
-        bool load(DetourInputGeometry* inputGeom, RecastContext* recastContext, Ref<godot::File> sourceFile);
+    RecastContext *_recastContext;
+    rcConfig *_rcConfig;
+    dtTileCache *_tileCache;
+    dtNavMesh *_navMesh;
+    dtNavMeshQuery *_navQuery;
+    dtCrowd *_crowd;
+    LinearAllocator *_allocator;
+    FastLZCompressor *_compressor;
+    MeshProcess *_meshProcess;
+    DetourInputGeometry *_inputGeom;
 
-        /**
-         * @brief Rebuilds all tiles that have changed (by marking areas).
-         */
-        void rebuildChangedTiles(const std::vector<int>& removedMarkedAreaIDs, const std::vector<int>& removedOffMeshConnections);
+    float _maxAgentSlope;
+    float _maxAgentHeight;
+    float _maxAgentClimb;
+    float _maxAgentRadius;
 
-        /**
-         * @brief Adds an agent to the navigation.
-         * @param parameters    The parameters to initialize the agent with.
-         * @return  True if everything worked out, false otherwise.
-         */
-        bool addAgent(Ref<DetourCrowdAgent> agent, Ref<DetourCrowdAgentParameters> parameters, bool main = true);
+    int _maxAgents;
+    int _maxObstacles;
+    int _maxLayers;
+    int _navQueryMaxNodes;
 
-        /**
-         * @brief Remove the passed crowd agent.
-         */
-        void removeAgent(dtCrowdAgent* agent);
+    Vector2 _cellSize;
+    int _tileSize;
+    int _layersPerTile;
 
-        /**
-         * @brief Adds the passed obstacle to this navmesh.
-         */
-        void addObstacle(Ref<DetourObstacle> obstacle);
+    int _navMeshIndex;
 
-        /**
-         * @brief   Updates the internal detour classes, agents, etc.
-         *          Called from the navigation thread!
-         */
-        void update(float timeDeltaSeconds);
+    std::map<int, ChangedTileLayers> _affectedTilesByVolume;
+    std::map<int, ChangedTileLayers> _affectedTilesByConnection;
+};
 
-        /**
-         * @brief Create a debug representation of this navigation mesh and attach it to the MeshInstance as a mesh.
-         */
-        void createDebugMesh(GodotDetourDebugDraw* debugDrawer, bool drawCacheBounds);
+inline Vector2 DetourNavigationMeshParameters::get_cell_size() const { return cellSize; }
+inline void DetourNavigationMeshParameters::set_cell_size(const Vector2 &p_value) { cellSize = p_value; }
+inline int DetourNavigationMeshParameters::get_max_num_agents() const { return maxNumAgents; }
+inline void DetourNavigationMeshParameters::set_max_num_agents(int p_value) { maxNumAgents = p_value; }
+inline float DetourNavigationMeshParameters::get_max_agent_slope() const { return maxAgentSlope; }
+inline void DetourNavigationMeshParameters::set_max_agent_slope(float p_value) { maxAgentSlope = p_value; }
+inline float DetourNavigationMeshParameters::get_max_agent_height() const { return maxAgentHeight; }
+inline void DetourNavigationMeshParameters::set_max_agent_height(float p_value) { maxAgentHeight = p_value; }
+inline float DetourNavigationMeshParameters::get_max_agent_climb() const { return maxAgentClimb; }
+inline void DetourNavigationMeshParameters::set_max_agent_climb(float p_value) { maxAgentClimb = p_value; }
+inline float DetourNavigationMeshParameters::get_max_agent_radius() const { return maxAgentRadius; }
+inline void DetourNavigationMeshParameters::set_max_agent_radius(float p_value) { maxAgentRadius = p_value; }
+inline float DetourNavigationMeshParameters::get_max_edge_length() const { return maxEdgeLength; }
+inline void DetourNavigationMeshParameters::set_max_edge_length(float p_value) { maxEdgeLength = p_value; }
+inline float DetourNavigationMeshParameters::get_max_simplification_error() const { return maxSimplificationError; }
+inline void DetourNavigationMeshParameters::set_max_simplification_error(float p_value) { maxSimplificationError = p_value; }
+inline int DetourNavigationMeshParameters::get_min_num_cells_per_island() const { return minNumCellsPerIsland; }
+inline void DetourNavigationMeshParameters::set_min_num_cells_per_island(int p_value) { minNumCellsPerIsland = p_value; }
+inline int DetourNavigationMeshParameters::get_min_cell_span_count() const { return minCellSpanCount; }
+inline void DetourNavigationMeshParameters::set_min_cell_span_count(int p_value) { minCellSpanCount = p_value; }
+inline int DetourNavigationMeshParameters::get_max_verts_per_poly() const { return maxVertsPerPoly; }
+inline void DetourNavigationMeshParameters::set_max_verts_per_poly(int p_value) { maxVertsPerPoly = p_value; }
+inline int DetourNavigationMeshParameters::get_tile_size() const { return tileSize; }
+inline void DetourNavigationMeshParameters::set_tile_size(int p_value) { tileSize = p_value; }
+inline int DetourNavigationMeshParameters::get_layers_per_tile() const { return layersPerTile; }
+inline void DetourNavigationMeshParameters::set_layers_per_tile(int p_value) { layersPerTile = p_value; }
+inline float DetourNavigationMeshParameters::get_detail_sample_distance() const { return detailSampleDistance; }
+inline void DetourNavigationMeshParameters::set_detail_sample_distance(float p_value) { detailSampleDistance = p_value; }
+inline float DetourNavigationMeshParameters::get_detail_sample_max_error() const { return detailSampleMaxError; }
+inline void DetourNavigationMeshParameters::set_detail_sample_max_error(float p_value) { detailSampleMaxError = p_value; }
+inline dtCrowd *DetourNavigationMesh::getCrowd() { return _crowd; }
 
-        /**
-         * @brief Get this navigation mesh's crowd.
-         */
-        dtCrowd* getCrowd();
-
-        /**
-         * @brief getActorFitFactor Returns how well an actor with the passed stats would fit this navmesh's crowd.
-         * @return -1.0f if the actor does not fit at all (radius or height too big), otherwise a positive value - the SMALLER, the better the fit.
-         */
-        float getActorFitFactor(float agentRadius, float agentHeight);
-
-    private:
-        /**
-         * @brief Initializes this mesh's crowd.
-         * @return True if everything worked out.
-         */
-        bool initializeCrowd();
-
-        /**
-         * @brief Rasterize all layers of this tile, preparing them to be in the tile cache.
-         */
-        int rasterizeTileLayers(const int tileX, const int tileZ, const rcConfig& cfg, TileCacheData* tiles, const int maxTiles);
-
-        /**
-         * @brief Draws the tiles using the passed debug drawer.
-         */
-        void debugDrawTiles(GodotDetourDebugDraw* debugDrawer);
-
-        /**
-         * @brief Draws the obstacles using the passed debug drawer.
-         */
-        void debugDrawObstacles(GodotDetourDebugDraw* debugDrawer);
-
-    private:
-        RecastContext*          _recastContext;
-        rcConfig*               _rcConfig;
-        dtTileCache*            _tileCache;
-        dtNavMesh*              _navMesh;
-        dtNavMeshQuery*         _navQuery;
-        dtCrowd*                _crowd;
-        LinearAllocator*        _allocator;
-        FastLZCompressor*       _compressor;
-        MeshProcess*            _meshProcess;
-        DetourInputGeometry*    _inputGeom;
-
-        float   _maxAgentSlope;
-        float   _maxAgentHeight;
-        float   _maxAgentClimb;
-        float   _maxAgentRadius;
-
-        int     _maxAgents;
-        int     _maxObstacles;
-        int     _maxLayers;
-        int     _navQueryMaxNodes;
-
-        Vector2 _cellSize;
-        int     _tileSize;
-        int     _layersPerTile;
-
-        int     _navMeshIndex;
-
-        std::map<int, ChangedTileLayers> _affectedTilesByVolume;
-        std::map<int, ChangedTileLayers> _affectedTilesByConnection;
-    };
-
-
-    // INLINES
-    inline dtCrowd*
-    DetourNavigationMesh::getCrowd()
-    {
-        return _crowd;
-    }
-}
+} // namespace godot
 
 #endif // DETOURNAVIGATIONMESH_H

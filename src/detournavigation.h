@@ -1,243 +1,122 @@
 #ifndef DETOURNAVIGATION_H
 #define DETOURNAVIGATION_H
 
-#include <Godot.hpp>
-#include <Array.hpp>
-#include <vector>
+#include <godot_cpp/classes/material.hpp>
+#include <godot_cpp/classes/mesh_instance3d.hpp>
+#include <godot_cpp/classes/ref_counted.hpp>
+#include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/string.hpp>
+#include <godot_cpp/variant/variant.hpp>
+
 #include <atomic>
 #include <map>
-#include "detournavigationmesh.h"
+#include <vector>
+
 #include "detourcrowdagent.h"
+#include "detournavigationmesh.h"
 
 class DetourInputGeometry;
-class RecastContext;
 class GodotDetourDebugDraw;
+class RecastContext;
 
-namespace std
-{
-    class thread;
-    class mutex;
+namespace std {
+class mutex;
+class thread;
 }
 
-namespace godot
-{
-    class DetourObstacle;
-    class MeshInstance;
-    class Material;
+namespace godot {
 
-    /**
-     * @brief Parameters to initialize a DetourNavigation.
-     */
-    struct DetourNavigationParameters : public Reference
-    {
-        GODOT_CLASS(DetourNavigationParameters, Reference)
+class DetourObstacle;
 
-    public:
-        /**
-         * @brief Called when .new() is called in gdscript
-         */
-        void _init() {}
+class DetourNavigationParameters : public RefCounted {
+    GDCLASS(DetourNavigationParameters, RefCounted)
 
-        static void _register_methods();
+public:
+    static void _bind_methods();
 
-        Array navMeshParameters;    // The number of elements in this array determines how many DetourNavigationMeshes there will be.
-        int ticksPerSecond;         // How many updates per second the navigation shall do in its thread.
-        int maxObstacles;           // The maximum amount of obstacles allowed at the same time. Obstacles beyond this amount will be rejected.
-        int defaultAreaType;        // The default area type to mark geometry as
-    };
+    void set_nav_mesh_parameters(const Array &p_value);
+    Array get_nav_mesh_parameters() const;
+    void set_ticks_per_second(int p_value);
+    int get_ticks_per_second() const;
+    void set_max_obstacles(int p_value);
+    int get_max_obstacles() const;
+    void set_default_area_type(int p_value);
+    int get_default_area_type() const;
 
-    /**
-     * @brief Main class to initialize GodotDetour and interact with it.
-     */
-    class DetourNavigation : public Reference
-    {
-        GODOT_CLASS(DetourNavigation, Reference)
+    Array navMeshParameters;
+    int ticksPerSecond = 60;
+    int maxObstacles = 256;
+    int defaultAreaType = 0;
+};
 
-    public:
-        static void _register_methods();
+class DetourNavigation : public RefCounted {
+    GDCLASS(DetourNavigation, RefCounted)
 
-        /**
-         * @brief Constructor.
-         */
-        DetourNavigation();
+public:
+    static void _bind_methods();
 
-        /**
-         * @brief Destructor.
-         */
-        ~DetourNavigation();
+    DetourNavigation();
+    ~DetourNavigation();
 
-        /**
-         * @brief Called when .new() is called in gdscript
-         */
-        void _init() {}
+    bool is_initialized() const;
+    bool initialize(const Variant &input_mesh_instance, const Ref<DetourNavigationParameters> &parameters);
+    void tick(float delta_seconds = -1.0f);
+    void rebuild_changed_tiles();
+    int mark_convex_area(Array vertices, float height, unsigned int area_type);
+    void remove_convex_area_marker(int id);
+    int add_off_mesh_connection(Vector3 from, Vector3 to, bool bidirectional, float radius, int area_type);
+    void remove_off_mesh_connection(int id);
+    bool set_query_filter(int index, String name, Dictionary weights);
+    Ref<DetourCrowdAgent> add_agent(const Ref<DetourCrowdAgentParameters> &parameters);
+    void remove_agent(const Ref<DetourCrowdAgent> &agent);
+    Ref<DetourObstacle> add_cylinder_obstacle(Vector3 position, float radius, float height);
+    Ref<DetourObstacle> add_box_obstacle(Vector3 position, Vector3 dimensions, float rotation_rad);
+    MeshInstance3D *create_debug_mesh(int index, bool draw_cache_bounds);
+    bool save(String path, bool compressed);
+    bool load(String path, bool compressed);
+    void clear();
+    Array get_agents();
+    Array get_obstacles();
+    Array get_marked_area_ids();
+    void navigation_thread_function();
 
-        /**
-         * @return True if the Navigation is initialized.
-         */
-        bool isInitialized();
+private:
+    DetourInputGeometry *_input_geometry;
+    std::vector<DetourNavigationMesh *> _nav_meshes;
+    std::vector<Ref<DetourCrowdAgent>> _agents;
+    std::vector<Ref<DetourObstacle>> _obstacles;
+    std::vector<int> _marked_area_ids;
+    std::vector<int> _removed_marked_area_ids;
+    std::vector<int> _off_mesh_connections;
+    std::vector<int> _removed_off_mesh_connections;
 
-        /**
-         * @brief initalize     Initialize the navigation. If called on an already initialized instance, will return false.
-         * @param inputMesh     The input MeshInstance to build the navigation mesh(es) from.
-         * @param parameters    The parameters for setting up the navigation.
-         * @return True if everything worked fine. False otherwise.
-         */
-        bool initialize(Variant inputMeshInstance, Ref<DetourNavigationParameters> parameters);
+    RecastContext *_recast_context;
+    GodotDetourDebugDraw *_debug_drawer;
 
-        /**
-         * @brief Rebuilds all tiles that have changed (by marking areas).
-         */
-        void rebuildChangedTiles();
+    bool _initialized;
+    int _ticks_per_second;
+    int _max_obstacles;
+    int _default_area_type;
 
-        /**
-         * @brief Marks the area as the passed type (influencing crowds based on their area filters).
-         * @param vertices  The vertices forming the bottom of the polygon.
-         * @param height    The height of the polygon (extended upwards from the vertices).
-         * @param areaType  Which area type to mark as.
-         */
-        int markConvexArea(Array vertices, float height, unsigned int areaType);
+    std::thread *_navigation_thread;
+    std::atomic_bool _stop_thread;
+    std::mutex *_navigation_mutex;
 
-        /**
-         * @brief Removes the convex marked area with the passed id.
-         */
-        void removeConvexAreaMarker(int id);
+    std::map<String, int> _query_filter_indices;
+};
 
-        /**
-         * @brief Creates and adds an off-mesh connection.
-         * @param from  The source point.
-         * @param to    The target point.
-         * @param bidirectional If this connection is bi-directional.
-         * @param radius    The radius of the entry/exit points.
-         * @param areaType  The area type of the entry/exit points (ground, grass, etc.).
-         * @return -1 if there was an error, the ID of the connection otherwise.
-         */
-        int addOffMeshConnection(Vector3 from, Vector3 to, bool bidirectional, float radius, int areaType);
+inline Array DetourNavigationParameters::get_nav_mesh_parameters() const { return navMeshParameters; }
+inline void DetourNavigationParameters::set_nav_mesh_parameters(const Array &p_value) { navMeshParameters = p_value; }
+inline int DetourNavigationParameters::get_ticks_per_second() const { return ticksPerSecond; }
+inline void DetourNavigationParameters::set_ticks_per_second(int p_value) { ticksPerSecond = p_value; }
+inline int DetourNavigationParameters::get_max_obstacles() const { return maxObstacles; }
+inline void DetourNavigationParameters::set_max_obstacles(int p_value) { maxObstacles = p_value; }
+inline int DetourNavigationParameters::get_default_area_type() const { return defaultAreaType; }
+inline void DetourNavigationParameters::set_default_area_type(int p_value) { defaultAreaType = p_value; }
+inline bool DetourNavigation::is_initialized() const { return _initialized; }
 
-        /**
-         * @brief Removes the off-mesh connection with the passed ID.
-         */
-        void removeOffMeshConnection(int id);
-
-        /**
-         * @brief setQueryFilter    Sets the filter at the passed index.
-         * @param index     The index to set. 0-15.
-         * @param name      The name the filter at this index shall have.
-         * @param weights   The weight of each area type in an int : float fashion.
-         * @return True if everything worked out fine.
-         */
-        bool setQueryFilter(int index, String name, Dictionary weights);
-
-        /**
-         * @brief Adds an agent to the navigation.
-         * @param parameters    The parameters to initialize the agent with.
-         * @return  The instance of the agent. nullptr if an error occurred.
-         */
-        Ref<DetourCrowdAgent> addAgent(Ref<DetourCrowdAgentParameters> parameters);
-
-        /**
-         * @brief Will remove the passed agent.
-         */
-        void removeAgent(Ref<DetourCrowdAgent> agent);
-
-        /**
-         * @brief Add a cylindric dynamic obstacle.
-         * @param position  The position of the obstacle (this is the bottom center of the cylinder.
-         * @param radius    The radius of the obstacle.
-         * @param height    The height of the obstacle.
-         * @return  The obstacle, if everything worked out. nullptr if otherwise.
-         */
-        Ref<DetourObstacle> addCylinderObstacle(Vector3 position, float radius, float height);
-
-        /**
-         * @brief Add a box dynamic obstacle.
-         * @param position      The position of the obstacle (this is the bottom center of the cylinder.
-         * @param dimensions    The dimensions of the box.
-         * @param rotationRad   The rotation around the y-axis, in radians.
-         * @return  The obstacle, if everything worked out. nullptr if otherwise.
-         */
-        Ref<DetourObstacle> addBoxObstacle(Vector3 position, Vector3 dimensions, float rotationRad);
-
-        /**
-         * @brief Creates a debug mesh for the navmesh at the passed index.
-         * @param index     The index of the navmesh to enable/disable debug drawing for.
-         * @return  The MeshInstance holding all the debug meshes.
-         */
-        MeshInstance* createDebugMesh(int index, bool drawCacheBounds);
-
-        /**
-         * @brief Saves the current state of the navigation, including all marked areas, temp obstacles and agents.
-         * @param path          The path to the file to save to.
-         * @param compressed    If the data should be compressed.
-         */
-        bool save(String path, bool compressed);
-
-        /**
-         * @brief Loads an entire navigation state, including marked areas, temp obstacles and agents.
-         * @param path          The path to the file to load from.
-         * @param compressed    If the data is expected to be compressed.
-         */
-        bool load(String path, bool compressed);
-
-        /**
-         * @brief Clears the entire navigation (all the data) and stops the navigation thread.
-         *          After this, a new initialize (or load) will be required.
-         */
-        void clear();
-
-        /**
-         * @brief Returns all current agents.
-         */
-        Array getAgents();
-
-        /**
-         * @brief Returns all current temporary obstacles.
-         */
-        Array getObstacles();
-
-        /**
-         * @brief Returns all currently marked areas' IDs.
-         */
-        Array getMarkedAreaIDs();
-
-        /**
-         * @brief This function is the thread running in the background, taking care of navigation updates.
-         */
-        void navigationThreadFunction();
-
-    private:
-        DetourInputGeometry*                _inputGeometry;
-        std::vector<DetourNavigationMesh*>  _navMeshes;
-        std::vector<Ref<DetourCrowdAgent> > _agents;
-        std::vector<Ref<DetourObstacle> >   _obstacles;
-        std::vector<int>                    _markedAreaIDs;
-        std::vector<int>                    _removedMarkedAreaIDs;
-        std::vector<int>                    _offMeshConnections;
-        std::vector<int>                    _removedOffMeshConnections;
-
-
-        RecastContext*          _recastContext;
-        GodotDetourDebugDraw*   _debugDrawer;
-
-
-        bool    _initialized;
-        int     _ticksPerSecond;
-        int     _maxObstacles;
-        int     _defaultAreaType;
-
-        std::thread*        _navigationThread;
-        std::atomic_bool    _stopThread;
-        std::mutex*         _navigationMutex;
-
-        std::map<String, int>   _queryFilterIndices;
-    };
-
-    // INLINES
-
-    inline bool
-    DetourNavigation::isInitialized()
-    {
-        return _initialized;
-    }
-}
+} // namespace godot
 
 #endif // DETOURNAVIGATION_H

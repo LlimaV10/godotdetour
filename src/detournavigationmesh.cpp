@@ -1,7 +1,9 @@
 #include "detournavigationmesh.h"
 #include <DetourTileCache.h>
-#include <SurfaceTool.hpp>
-#include <File.hpp>
+#include <godot_cpp/classes/file_access.hpp>
+#include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/packed_byte_array.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 #include <Recast.h>
 #include <DetourNavMesh.h>
 #include <DetourNavMeshQuery.h>
@@ -18,30 +20,62 @@
 
 using namespace godot;
 
+#define File FileAccess
+
 #define NAVMESH_SAVE_VERSION 1
 
 void
-DetourNavigationMeshParameters::_register_methods()
+DetourNavigationMeshParameters::_bind_methods()
 {
-    register_property<DetourNavigationMeshParameters, Vector2>("cellSize", &DetourNavigationMeshParameters::cellSize, Vector2(0.0f, 0.0f));
-    register_property<DetourNavigationMeshParameters, int>("maxNumAgents", &DetourNavigationMeshParameters::maxNumAgents, 256);
-    register_property<DetourNavigationMeshParameters, float>("maxAgentSlope", &DetourNavigationMeshParameters::maxAgentSlope, 0.0f);
-    register_property<DetourNavigationMeshParameters, float>("maxAgentHeight", &DetourNavigationMeshParameters::maxAgentHeight, 0.0f);
-    register_property<DetourNavigationMeshParameters, float>("maxAgentClimb", &DetourNavigationMeshParameters::maxAgentClimb, 0.0f);
-    register_property<DetourNavigationMeshParameters, float>("maxAgentRadius", &DetourNavigationMeshParameters::maxAgentRadius, 0.0f);
-    register_property<DetourNavigationMeshParameters, float>("maxEdgeLength", &DetourNavigationMeshParameters::maxEdgeLength, 0.0f);
-    register_property<DetourNavigationMeshParameters, float>("maxSimplificationError", &DetourNavigationMeshParameters::maxSimplificationError, 0.0f);
-    register_property<DetourNavigationMeshParameters, int>("minNumCellsPerIsland", &DetourNavigationMeshParameters::minNumCellsPerIsland, 0);
-    register_property<DetourNavigationMeshParameters, int>("minCellSpanCount", &DetourNavigationMeshParameters::minCellSpanCount, 0);
-    register_property<DetourNavigationMeshParameters, int>("maxVertsPerPoly", &DetourNavigationMeshParameters::maxVertsPerPoly, 0);
-    register_property<DetourNavigationMeshParameters, int>("tileSize", &DetourNavigationMeshParameters::tileSize, 0);
-    register_property<DetourNavigationMeshParameters, int>("layersPerTile", &DetourNavigationMeshParameters::layersPerTile, 0);
-    register_property<DetourNavigationMeshParameters, float>("detailSampleDistance", &DetourNavigationMeshParameters::detailSampleDistance, 0.0f);
-    register_property<DetourNavigationMeshParameters, float>("detailSampleMaxError", &DetourNavigationMeshParameters::detailSampleMaxError, 0.0f);
+    ClassDB::bind_method(D_METHOD("get_cell_size"), &DetourNavigationMeshParameters::get_cell_size);
+    ClassDB::bind_method(D_METHOD("set_cell_size", "value"), &DetourNavigationMeshParameters::set_cell_size);
+    ClassDB::bind_method(D_METHOD("get_max_num_agents"), &DetourNavigationMeshParameters::get_max_num_agents);
+    ClassDB::bind_method(D_METHOD("set_max_num_agents", "value"), &DetourNavigationMeshParameters::set_max_num_agents);
+    ClassDB::bind_method(D_METHOD("get_max_agent_slope"), &DetourNavigationMeshParameters::get_max_agent_slope);
+    ClassDB::bind_method(D_METHOD("set_max_agent_slope", "value"), &DetourNavigationMeshParameters::set_max_agent_slope);
+    ClassDB::bind_method(D_METHOD("get_max_agent_height"), &DetourNavigationMeshParameters::get_max_agent_height);
+    ClassDB::bind_method(D_METHOD("set_max_agent_height", "value"), &DetourNavigationMeshParameters::set_max_agent_height);
+    ClassDB::bind_method(D_METHOD("get_max_agent_climb"), &DetourNavigationMeshParameters::get_max_agent_climb);
+    ClassDB::bind_method(D_METHOD("set_max_agent_climb", "value"), &DetourNavigationMeshParameters::set_max_agent_climb);
+    ClassDB::bind_method(D_METHOD("get_max_agent_radius"), &DetourNavigationMeshParameters::get_max_agent_radius);
+    ClassDB::bind_method(D_METHOD("set_max_agent_radius", "value"), &DetourNavigationMeshParameters::set_max_agent_radius);
+    ClassDB::bind_method(D_METHOD("get_max_edge_length"), &DetourNavigationMeshParameters::get_max_edge_length);
+    ClassDB::bind_method(D_METHOD("set_max_edge_length", "value"), &DetourNavigationMeshParameters::set_max_edge_length);
+    ClassDB::bind_method(D_METHOD("get_max_simplification_error"), &DetourNavigationMeshParameters::get_max_simplification_error);
+    ClassDB::bind_method(D_METHOD("set_max_simplification_error", "value"), &DetourNavigationMeshParameters::set_max_simplification_error);
+    ClassDB::bind_method(D_METHOD("get_min_num_cells_per_island"), &DetourNavigationMeshParameters::get_min_num_cells_per_island);
+    ClassDB::bind_method(D_METHOD("set_min_num_cells_per_island", "value"), &DetourNavigationMeshParameters::set_min_num_cells_per_island);
+    ClassDB::bind_method(D_METHOD("get_min_cell_span_count"), &DetourNavigationMeshParameters::get_min_cell_span_count);
+    ClassDB::bind_method(D_METHOD("set_min_cell_span_count", "value"), &DetourNavigationMeshParameters::set_min_cell_span_count);
+    ClassDB::bind_method(D_METHOD("get_max_verts_per_poly"), &DetourNavigationMeshParameters::get_max_verts_per_poly);
+    ClassDB::bind_method(D_METHOD("set_max_verts_per_poly", "value"), &DetourNavigationMeshParameters::set_max_verts_per_poly);
+    ClassDB::bind_method(D_METHOD("get_tile_size"), &DetourNavigationMeshParameters::get_tile_size);
+    ClassDB::bind_method(D_METHOD("set_tile_size", "value"), &DetourNavigationMeshParameters::set_tile_size);
+    ClassDB::bind_method(D_METHOD("get_layers_per_tile"), &DetourNavigationMeshParameters::get_layers_per_tile);
+    ClassDB::bind_method(D_METHOD("set_layers_per_tile", "value"), &DetourNavigationMeshParameters::set_layers_per_tile);
+    ClassDB::bind_method(D_METHOD("get_detail_sample_distance"), &DetourNavigationMeshParameters::get_detail_sample_distance);
+    ClassDB::bind_method(D_METHOD("set_detail_sample_distance", "value"), &DetourNavigationMeshParameters::set_detail_sample_distance);
+    ClassDB::bind_method(D_METHOD("get_detail_sample_max_error"), &DetourNavigationMeshParameters::get_detail_sample_max_error);
+    ClassDB::bind_method(D_METHOD("set_detail_sample_max_error", "value"), &DetourNavigationMeshParameters::set_detail_sample_max_error);
+    ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "cellSize"), "set_cell_size", "get_cell_size");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "maxNumAgents"), "set_max_num_agents", "get_max_num_agents");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "maxAgentSlope"), "set_max_agent_slope", "get_max_agent_slope");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "maxAgentHeight"), "set_max_agent_height", "get_max_agent_height");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "maxAgentClimb"), "set_max_agent_climb", "get_max_agent_climb");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "maxAgentRadius"), "set_max_agent_radius", "get_max_agent_radius");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "maxEdgeLength"), "set_max_edge_length", "get_max_edge_length");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "maxSimplificationError"), "set_max_simplification_error", "get_max_simplification_error");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "minNumCellsPerIsland"), "set_min_num_cells_per_island", "get_min_num_cells_per_island");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "minCellSpanCount"), "set_min_cell_span_count", "get_min_cell_span_count");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "maxVertsPerPoly"), "set_max_verts_per_poly", "get_max_verts_per_poly");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "tileSize"), "set_tile_size", "get_tile_size");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "layersPerTile"), "set_layers_per_tile", "get_layers_per_tile");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "detailSampleDistance"), "set_detail_sample_distance", "get_detail_sample_distance");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "detailSampleMaxError"), "set_detail_sample_max_error", "get_detail_sample_max_error");
 }
 
 void
-DetourNavigationMesh::_register_methods()
+DetourNavigationMesh::_bind_methods()
 {
     // TODO: Do we really need to expose this class to GDScript?
 }
@@ -92,7 +126,7 @@ DetourNavigationMesh::~DetourNavigationMesh()
 bool
 DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavigationMeshParameters> params, int maxObstacles, RecastContext* recastContext, int index)
 {
-    Godot::print("DTNavMeshInitialize: Initializing navigation mesh");
+    UtilityFunctions::print("DTNavMeshInitialize: Initializing navigation mesh");
 
     _navMeshIndex = index;
     _recastContext = recastContext;
@@ -119,9 +153,9 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
     const int tw = (gw + ts-1) / ts;
     const int th = (gh + ts-1) / ts;
 
-    Godot::print(String("DTNavMeshInitialize: tile sizes {0} {1} {2}").format(Array::make(ts, tw, th)));
-    Godot::print(String("DTNavMeshInitialize: grid sizes {0} {1}").format(Array::make(gw, gh)));
-    Godot::print(String("DTNavMeshInitialize: bounds {0} {1}").format(Array::make(Vector3(bmin[0], bmin[1], bmin[2]), Vector3(bmax[0], bmax[1], bmax[2]))));
+    UtilityFunctions::print(String("DTNavMeshInitialize: tile sizes {0} {1} {2}").format(Array::make(ts, tw, th)));
+    UtilityFunctions::print(String("DTNavMeshInitialize: grid sizes {0} {1}").format(Array::make(gw, gh)));
+    UtilityFunctions::print(String("DTNavMeshInitialize: bounds {0} {1}").format(Array::make(Vector3(bmin[0], bmin[1], bmin[2]), Vector3(bmax[0], bmax[1], bmax[2]))));
 
     // Generation parameters
     rcConfig& cfg = *_rcConfig;
@@ -160,7 +194,7 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
     tcparams.maxSimplificationError = para->maxSimplificationError;
     tcparams.maxTiles = tw * th * _layersPerTile;
     tcparams.maxObstacles = _maxObstacles;
-    Godot::print("DTNavMeshInitialize: Assigned parameters...");
+    UtilityFunctions::print("DTNavMeshInitialize: Assigned parameters...");
 
     dtFreeTileCache(_tileCache);
     _tileCache = dtAllocTileCache();
@@ -175,7 +209,7 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
         ERR_PRINT("DTNavMeshInitialize: Could not init tile cache.");
         return false;
     }
-    Godot::print("DTNavMeshInitialize: Initialized tile cache...");
+    UtilityFunctions::print("DTNavMeshInitialize: Initialized tile cache...");
 
     dtFreeNavMesh(_navMesh);
     _navMesh = dtAllocNavMesh();
@@ -207,7 +241,7 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
         ERR_PRINT("DTNavMeshInitialize: Could not init Detour navmesh.");
         return false;
     }
-    Godot::print("DTNavMeshInitialize: Initialized Detour navmesh...");
+    UtilityFunctions::print("DTNavMeshInitialize: Initialized Detour navmesh...");
 
     status = _navQuery->init(_navMesh, _navQueryMaxNodes);
     if (dtStatusFailed(status))
@@ -215,7 +249,7 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
         ERR_PRINT("DTNavMeshInitialize: Could not init Detour navmesh query");
         return false;
     }
-    Godot::print("DTNavMeshInitialize: Initialized Detour navmesh query...");
+    UtilityFunctions::print("DTNavMeshInitialize: Initialized Detour navmesh query...");
 
     // Preprocess tiles
     _recastContext->resetTimers();
@@ -251,7 +285,7 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
             delete [] tiles;
         }
     }
-    Godot::print("DTNavMeshInitialize: Processed input mesh..");
+    UtilityFunctions::print("DTNavMeshInitialize: Processed input mesh..");
 
     // Build initial meshes
     _recastContext->startTimer(RC_TIMER_TOTAL);
@@ -280,7 +314,7 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
         if (tile->header)
             navmeshMemUsage += tile->dataSize;
     }
-    Godot::print(String("DTNavMeshInitialize: navmesh memory usage: {0} bytes").format(Array::make(navmeshMemUsage)));
+    UtilityFunctions::print(String("DTNavMeshInitialize: navmesh memory usage: {0} bytes").format(Array::make(navmeshMemUsage)));
 
     // Initialize the crowd
     if (!initializeCrowd())
@@ -358,10 +392,9 @@ DetourNavigationMesh::save(Ref<File> targetFile)
         }
 
         targetFile->store_32(tile->dataSize);
-        PoolByteArray array;
+        PackedByteArray array;
         array.resize(tile->dataSize);
-        PoolByteArray::Write writer = array.write();
-        memcpy(writer.ptr(), tile->data, tile->dataSize);
+        memcpy(array.ptrw(), tile->data, tile->dataSize);
         targetFile->store_buffer(array);
     }
 
@@ -512,8 +545,8 @@ DetourNavigationMesh::load(DetourInputGeometry* inputGeom, RecastContext* recast
             }
             unsigned char* data = (unsigned char*)dtAlloc(dataSize, DT_ALLOC_PERM);
             memset(data, 0, dataSize);
-            PoolByteArray array = sourceFile->get_buffer(dataSize);
-            memcpy(data, array.read().ptr(), dataSize);
+            PackedByteArray array = sourceFile->get_buffer(dataSize);
+            memcpy(data, array.ptr(), dataSize);
 
             // Add tile
             dtCompressedTileRef tile = 0;
@@ -1344,7 +1377,7 @@ DetourNavigationMesh::rasterizeTileLayers(const int tileX, const int tileZ, cons
 
         if (!rcRasterizeTriangles(_recastContext, verts, nverts, tris, rc.triareas, ntris, *rc.solid, tcfg.walkableClimb))
         {
-            Godot::print("DTNavMesh::rasterizeTileLayers: RasterizeTriangles returned false");
+            UtilityFunctions::print("DTNavMesh::rasterizeTileLayers: RasterizeTriangles returned false");
             return 0;
         }
     }

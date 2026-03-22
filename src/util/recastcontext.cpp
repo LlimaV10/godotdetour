@@ -1,5 +1,4 @@
 #include "recastcontext.h"
-#include <OS.hpp>
 
 using namespace godot;
 
@@ -48,7 +47,7 @@ RecastContext::doLog(const rcLogCategory category, const char* msg, const int le
     message = message.format(Array::make(catMsg, String(msg)));
 
     // Print
-    Godot::print(message);
+    UtilityFunctions::print(message);
 }
 
 void
@@ -64,13 +63,13 @@ RecastContext::doResetTimers()
 void
 RecastContext::doStartTimer(const rcTimerLabel label)
 {
-    _timers[label] = OS::get_singleton()->get_ticks_msec();
+    _timers[label] = Time::get_singleton()->get_ticks_msec();
 }
 
 void
 RecastContext::doStopTimer(const rcTimerLabel label)
 {
-    int64_t now = OS::get_singleton()->get_ticks_msec();
+    int64_t now = Time::get_singleton()->get_ticks_msec();
     int64_t deltaTime = now - _timers[label];
     if (_accumulatedTime[label] == -1)
     {

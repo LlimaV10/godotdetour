@@ -1,7 +1,4 @@
 #include "detourobstacle.h"
-#include <CylinderMesh.hpp>
-#include <QuadMesh.hpp>
-#include <File.hpp>
 #include <DetourTileCache.h>
 
 using namespace godot;
@@ -9,13 +6,18 @@ using namespace godot;
 #define OBSTACLE_SAVE_VERSION 1
 
 void
-DetourObstacle::_register_methods()
+DetourObstacle::_bind_methods()
 {
-    register_method("move", &DetourObstacle::move);
-    register_method("destroy", &DetourObstacle::destroy);
+    ClassDB::bind_method(D_METHOD("move", "position"), &DetourObstacle::move);
+    ClassDB::bind_method(D_METHOD("destroy"), &DetourObstacle::destroy);
+    ClassDB::bind_method(D_METHOD("get_position"), &DetourObstacle::get_position);
+    ClassDB::bind_method(D_METHOD("set_position", "position"), &DetourObstacle::set_position);
+    ClassDB::bind_method(D_METHOD("get_dimensions"), &DetourObstacle::get_dimensions);
+    ClassDB::bind_method(D_METHOD("set_dimensions", "dimensions"), &DetourObstacle::set_dimensions);
+    ClassDB::bind_method(D_METHOD("is_destroyed"), &DetourObstacle::is_destroyed);
 
-    register_property<DetourObstacle, Vector3>("position", &DetourObstacle::_position, Vector3(0.0f, 0.0f, 0.0f));
-    register_property<DetourObstacle, Vector3>("dimensions", &DetourObstacle::_dimensions, Vector3(0.0f, 0.0f, 0.0f));
+    ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "position"), "set_position", "get_position");
+    ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "dimensions"), "set_dimensions", "get_dimensions");
 }
 
 DetourObstacle::DetourObstacle()
@@ -45,7 +47,7 @@ DetourObstacle::initialize(DetourObstacleType type, const Vector3& position, con
 }
 
 bool
-DetourObstacle::save(Ref<File> targetFile)
+DetourObstacle::save(const Ref<FileAccess> &targetFile)
 {
     // Version
     targetFile->store_16(OBSTACLE_SAVE_VERSION);
@@ -61,7 +63,7 @@ DetourObstacle::save(Ref<File> targetFile)
 }
 
 bool
-DetourObstacle::load(Ref<File> sourceFile)
+DetourObstacle::load(const Ref<FileAccess> &sourceFile)
 {
     // Version
     int version = sourceFile->get_16();
@@ -84,7 +86,7 @@ DetourObstacle::load(Ref<File> sourceFile)
 }
 
 void
-DetourObstacle::createDetourObstacle(dtTileCache* cache)
+DetourObstacle::create_detour_obstacle(dtTileCache* cache)
 {
     dtObstacleRef ref;
     switch (_type)
@@ -128,11 +130,11 @@ DetourObstacle::createDetourObstacle(dtTileCache* cache)
         return;
     }
 
-    addReference(ref, cache);
+    add_reference(ref, cache);
 }
 
 void
-DetourObstacle::addReference(unsigned int ref, dtTileCache* cache)
+DetourObstacle::add_reference(unsigned int ref, dtTileCache* cache)
 {
     _references[cache] = ref;
 }
@@ -148,7 +150,7 @@ DetourObstacle::move(Vector3 position)
 
         // Add the obstacle again at a new position
         _position = position;
-        createDetourObstacle(it.first);
+        create_detour_obstacle(it.first);
     }
 }
 

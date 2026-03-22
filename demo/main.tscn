@@ -1,256 +1,107 @@
-[gd_scene load_steps=16 format=2]
+[gd_scene format=4 uid="uid://dpixck73g4abb"]
 
-[ext_resource path="res://main.gd" type="Script" id=1]
-[ext_resource path="res://fonts/default_font.tres" type="DynamicFont" id=2]
-[ext_resource path="res://fonts/default_font_bold.tres" type="DynamicFont" id=3]
-[ext_resource path="res://Camera.gd" type="Script" id=4]
+[ext_resource type="Script" uid="uid://b601qi0s2q7br" path="res://main.gd" id="1"]
+[ext_resource type="Script" uid="uid://bq6b5x8veuqwg" path="res://Camera.gd" id="2"]
 
-[sub_resource type="SpatialMaterial" id=1]
+[sub_resource type="ArrayMesh" id="ArrayMesh_0xm2m"]
+_surfaces = [{
+"aabb": AABB(-12.572998, -2.0500772, -13.406189, 25.718937, 6.100155, 27.427795),
+"attribute_data": PackedByteArray("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"),
+"format": 34359738391,
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 240,
+"vertex_data": PackedByteArray("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/tLwP7LAm7+YBsI/4GrHvXc0A8D3mHVA6EvDPrLAm78WpYNAVomzP3c0A8AqpJ4//iJyPwAAAL/zxHk/bNsevwAAAL8bC5I9VomzP3c0A8AqpJ4//tLwP7LAm7+YBsI//iJyPwAAAL/zxHk//tLwP7LAm7+YBsI/6EvDPrLAm78WpYNA7989PwAAAL8UJao//tLwP7LAm7+YBsI/7989PwAAAL8UJao//iJyPwAAAL/zxHk/AAD/f/9//n8AAP9//3/+fwAA/3//f/5//////wAA/z//////AAD/P/////8AAP8//3///wAAAAD/f/////8AAP9//////wAA/38AAAAAAAD/fwAAAAAAAP9/AAAAAAAA/38AAAAAAAD/fwAA//8AAP9/AAAAAAAA/3///wAAAAD/f/////8AAP9//////wAA/3///wAAAAD/f/////8AAP9///8AAAAA/3///wAAAAD/f///AAAAAP9//////wAA/38AAAAAAAD/fwAA//8AAP9/AAD//wAA/3///wAAAAD/f///AAAAAP9//////wAAAAD/f/9//n8AAP9//3/+fwAA/3//f/5//38AAAAAAAD/fwAAAAAAAP9/AAD//wAA/38AAAAAAAD/fwAAAAAAAP9/AAD//wAA/38AAAAAAAD/fwAA//8AAP9/AAAAAAAA/3//////AAD/f///AAAAAP9///8AAAAA/3//////AAD/f///AAAAAP9//////wAA/3///wAAAAD/f/////8AAP9///8AAAAA/3//fwAA/z//f/9/AAD/P/9//38AAP8//38AAAAAAAD/fwAA//8AAP9/AAD//wAA/3//////AAD/f/////8AAP9//////wAA/3///wAAAAD/f/////8AAP9//////wAA/////wAA/z//////AAD/P/////8AAP8//3///wAAAAD/f/////8AAP9//////wAA/38AAAAAAAD/fwAAAAAAAP9/AAAAAAAA////f/9//n////9//3/+f////3//f/5//38AAAAAAAD/fwAAAAAAAP9/AAD//wAA/3//////AAD/f/////8AAP9//////wAA////f/9//n////9//3/+f////3//f/5//38AAP//AAD/fwAAAAAAAP9/AAD//wAA/38AAP//AAD/fwAA//8AAP9/AAD//wAA/3//////AAD/f/////8AAP9///8AAAAA/3//////AAD/f/////8AAP9//////wAA/3//fwAA/z//f/9/AAD/P/9//38AAP8//38AAP//AAD/fwAAAAAAAP9/AAD//wAA/38AAP//AAD/fwAAAAAAAP9/AAD//wAA/3//////AAD/f/////8AAP9//////wAA////f/9//n////9//3/+f////3//f/5//3//////AAD/f/////8AAP9//////wAA////f/9//n////9//3/+f////3//f/5/AAACvP9//n8AAAK8/3/+fwAAArz/f/5////7wwAA/iH///vDAAD+If//+8MAAP4h/EP/fwAA/iH8Q/9/AAD+IfxD/38AAP4h/38AAP//AR7/fwAA//8BHv9/AAD//wEe+8P/f/9//n/7w/9//3/+f/vD/3//f/5////7wwAA/iH///vDAAD+If//+8MAAP4h///7wwAA/iH///vDAAD+If//+8MAAP4h+8P/f/9//n/7w/9//3/+f/vD/3//f/5/+8P/f/9//n/7w/9//3/+f/vD/3//f/5/AAACvP9//n8AAAK8/3/+fwAAArz/f/5//EP/fwAA/iH8Q/9/AAD+IfxD/38AAP4h/3//////AR7/f/////8BHv9//////wEe///7wwAA/iH///vDAAD+If//+8MAAP4h+8P/f/9//n/7w/9//3/+f/vD/3//f/5//3//////AR7/f/////8BHv9//////wEeJEOUJp227FQkQ5QmnbbsVCRDlCadtuxUJEOUJp227FQkQ5QmnbbsVCRDlCadtuxUJEOUJp227FQkQ5QmnbbsVCRDlCadtuxUJVH/f5SmbR4lUf9/lKZtHiVR/3+Upm0eJVH/f5SmbR4lUf9/lKZtHiVR/3+Upm0elKYjw5227FSUpiPDnbbsVJSmI8OdtuxUJVH/f5SmbR4lUf9/lKZtHiVR/3+Upm0e2ClgySVR/z/YKWDJJVH/P9gpYMklUf8/JEOUJp227FQkQ5QmnbbsVCRDlCadtuxUJEOUJp227FQkQ5QmnbbsVCRDlCadtuxU/v/ZLpSmbR7+/9kulKZtHv7/2S6Upm0e/v/ZLpSmbR7+/9kulKZtHv7/2S6Upm0elKYjw5227FSUpiPDnbbsVJSmI8OdtuxUlKYjw5227FSUpiPDnbbsVJSmI8OdtuxU2ClgySVR/z/YKWDJJVH/P9gpYMklUf8/JEOUJp227FQkQ5QmnbbsVCRDlCadtuxUJVH/f5SmbR4lUf9/lKZtHiVR/3+Upm0eJVH/f5SmbR4lUf9/lKZtHiVR/3+Upm0eJVH/f5SmbR4lUf9/lKZtHiVR/3+Upm0elKYjw5227FSUpiPDnbbsVJSmI8OdtuxUnbYmViVR/z+dtiZWJVH/P522JlYlUf8/nbYmViVR/z+dtiZWJVH/P522JlYlUf8////ZLpSmbR7//9kulKZtHv//2S6Upm0e///ZLpSmbR7//9kulKZtHv//2S6Upm0elKYjw5227FSUpiPDnbbsVJSmI8OdtuxUlKYjw5227FSUpiPDnbbsVJSmI8OdtuxU")
+}]
 
-[sub_resource type="SpatialMaterial" id=2]
-albedo_color = Color( 0.207843, 0.207843, 0.227451, 1 )
+[sub_resource type="StandardMaterial3D" id="3"]
+albedo_color = Color(0.85, 0.85, 0.88, 1)
+roughness = 0.95
 
-[sub_resource type="CylinderShape" id=3]
-radius = 0.7
+[sub_resource type="BoxMesh" id="1"]
+size = Vector3(30, 1, 30)
 
-[sub_resource type="SpatialMaterial" id=4]
-vertex_color_use_as_albedo = true
-albedo_color = Color( 0.0117647, 1, 0.027451, 1 )
+[sub_resource type="BoxShape3D" id="2"]
+size = Vector3(30, 1, 30)
 
-[sub_resource type="SphereMesh" id=5]
-material = SubResource( 4 )
+[node name="Main" type="Node3D" unique_id=1773650008]
+script = ExtResource("1")
 
-[sub_resource type="CapsuleShape" id=6]
-radius = 0.5
-height = 1.6
+[node name="Ground_CSG" type="CSGCombiner3D" parent="." unique_id=465913773]
 
-[sub_resource type="CapsuleMesh" id=7]
-radius = 0.4
-mid_height = 1.4
+[node name="gr" type="CSGBox3D" parent="Ground_CSG" unique_id=1770936366]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.17663574, -0.1328125, 0.30770874)
+size = Vector3(25.499268, 0.734375, 27.427795)
 
-[sub_resource type="SpatialMaterial" id=8]
-albedo_color = Color( 0.0901961, 0, 0.729412, 1 )
+[node name="CSGBox3D" type="CSGBox3D" parent="Ground_CSG" unique_id=1987044422]
+transform = Transform3D(0.7497069, 0, -0.66177, 0, 1, 0, 0.66177, 0, 0.7497069, 8.553028, 0.8657837, -0.61001873)
+size = Vector3(11.369843, 2.7315674, 1)
 
-[sub_resource type="SphereMesh" id=9]
-radius = 0.3
-height = 0.6
+[node name="CSGBox3D2" type="CSGBox3D" parent="Ground_CSG" unique_id=1875000267]
+transform = Transform3D(-0.7216236, 0.50000006, -0.47881037, 0.5528826, -4.222196e-08, -0.83325917, -0.41662967, -0.8660254, -0.2764413, -2.5451481, 1, 0.6921854)
+size = Vector3(9.526245, 3, 1)
 
-[sub_resource type="PrismMesh" id=10]
-left_to_right = 1.0
-size = Vector3( 0.2, 0.4, 0.2 )
+[node name="Ground" type="MeshInstance3D" parent="." unique_id=531952009]
+visible = false
+mesh = SubResource("ArrayMesh_0xm2m")
 
-[sub_resource type="SpatialMaterial" id=11]
-albedo_color = Color( 1, 0.960784, 0, 1 )
+[node name="Ground_old" type="MeshInstance3D" parent="." unique_id=622695198]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 69.00304, 0, 0)
+visible = false
+material_override = SubResource("3")
+mesh = SubResource("1")
 
-[node name="Spatial" type="Spatial"]
-script = ExtResource( 1 )
+[node name="StaticBody3D" type="StaticBody3D" parent="Ground_old" unique_id=1919780071]
 
-[node name="MeshInstance" type="MeshInstance" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Ground_old/StaticBody3D" unique_id=1144172575]
+shape = SubResource("2")
+disabled = true
 
-[node name="CSGCombiner" type="CSGCombiner" parent="."]
+[node name="Start" type="Marker3D" parent="." unique_id=226878017]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0.5, 0)
 
-[node name="CSGBox" type="CSGBox" parent="CSGCombiner"]
-width = 40.0
-height = 0.2
-depth = 40.0
-material = SubResource( 1 )
+[node name="TargetA" type="Marker3D" parent="." unique_id=1456965869]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.5, 8)
 
-[node name="CSGCylinder" type="CSGCylinder" parent="CSGCombiner"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 12.4112, 1.03915, -7.22117 )
-radius = 2.44625
-height = 8.0
-sides = 12
-material = SubResource( 2 )
+[node name="TargetB" type="Marker3D" parent="." unique_id=235297909]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.5, -8)
 
-[node name="CSGCylinder2" type="CSGCylinder" parent="CSGCombiner"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, -11.2004, 0.58831, 8.52327 )
-radius = 2.43059
-height = 4.0
-sides = 12
-material = SubResource( 2 )
+[node name="Sun" type="DirectionalLight3D" parent="." unique_id=597724029]
+transform = Transform3D(0.81915194, 0.46984622, -0.32898995, -0.25065628, 0.80914354, 0.53146774, 0.5159083, -0.35288954, 0.78058165, 0, 7.6681166, 0)
+light_energy = 1.6
+shadow_enabled = true
 
-[node name="BigColumn" type="CSGCylinder" parent="CSGCombiner"]
-transform = Transform( 1, 0, 0, 0, 0.611159, 0, 0, 0, 1, -7.93539, 2.7481, -13.3401 )
-radius = 4.61686
-height = 4.0
-sides = 12
-material = SubResource( 2 )
+[node name="Camera" type="Camera3D" parent="." unique_id=175741727]
+transform = Transform3D(0.9998324, -0.007737133, 0.016592337, -3.5527137e-15, 0.9063079, 0.42261833, -0.018307619, -0.4225475, 0.90615594, 0, 12, 18)
+current = true
+script = ExtResource("2")
 
-[node name="CSGPolygon" type="CSGPolygon" parent="CSGCombiner"]
-transform = Transform( 3.71727, 1.24289, 0.00846035, 0, -0.0099564, 1.46267, 1.11043, -4.1607, -0.0283219, 6.48618, 0.35709, 12.9404 )
-operation = 2
-polygon = PoolVector2Array( -0.559145, -0.565203, 0, 1, 0.419084, -0.391568, 2.37342, 0.490185, 1.66675, -1.52039 )
+[node name="CanvasLayer" type="CanvasLayer" parent="." unique_id=1981972806]
 
-[node name="CSGBox2" type="CSGBox" parent="CSGCombiner"]
-transform = Transform( 0.891328, 0.000883147, -0.453358, -0.000907711, 1, 0.000163413, 0.453357, 0.000265883, 0.891329, -4.17067, -4.76837e-07, 11.4612 )
-operation = 2
-width = 6.0
-depth = 8.0
+[node name="Control" type="Control" parent="CanvasLayer" unique_id=1916247899]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 
-[node name="Ramp" type="CSGBox" parent="CSGCombiner"]
-transform = Transform( 0.0172081, -0.425511, -0.90479, 0, 0.904924, -0.425574, 0.999852, 0.00732315, 0.0155725, -9.93966, 3.45367, 0.403392 )
-width = 4.0
-height = 0.2
-depth = 20.0
-material = SubResource( 1 )
-
-[node name="Ramp3" type="CSGBox" parent="CSGCombiner"]
-transform = Transform( 0.0172081, -0.425511, -0.90479, 0, 0.904924, -0.425574, 0.999852, 0.00732315, 0.0155725, 14.2485, 19.9875, 0.403392 )
-width = 4.0
-height = 0.2
-depth = 20.0
-material = SubResource( 1 )
-
-[node name="Ramp4" type="CSGBox" parent="CSGCombiner"]
-transform = Transform( -0.271148, 0.204634, 0.940534, 0.0247539, 0.978299, -0.205714, -0.962219, -0.032497, -0.27033, 14.7623, 25.0216, 4.86232 )
-width = 4.0
-height = 0.2
-depth = 20.0
-material = SubResource( 1 )
-
-[node name="Ramp2" type="CSGBox" parent="CSGCombiner"]
-transform = Transform( -0.625028, -0.41332, -0.662198, -0.00156549, 0.848979, -0.528425, 0.7806, -0.329244, -0.531283, -5.51536, 4.82158, -10.9785 )
-width = 3.2
-height = 0.2
-depth = 10.0
-material = SubResource( 2 )
-
-[node name="Platform" type="CSGBox" parent="CSGCombiner"]
-transform = Transform( 0.990629, 0, 0.13658, 0, 1, 0, -0.13658, 0, 0.990629, 6.23879, 7.56228, -1.90465 )
-width = 16.0
-height = 0.2
-depth = 16.0
-material = SubResource( 1 )
-
-[node name="Platform2" type="CSGBox" parent="CSGCombiner"]
-transform = Transform( 0.884385, 0, -0.466757, -0.0732583, 0.987606, -0.138806, 0.460972, 0.156952, 0.873425, 6.23879, 16.4212, -1.90465 )
-width = 16.0
-height = 0.2
-depth = 16.0
-material = SubResource( 1 )
-
-[node name="Platform3" type="CSGBox" parent="CSGCombiner"]
-transform = Transform( 0.607635, 0.043075, -0.793047, 0.0979599, 0.986839, 0.128658, 0.788152, -0.155864, 0.595418, 6.23879, 25.4031, -1.90465 )
-width = 16.0
-height = 0.2
-depth = 16.0
-material = SubResource( 1 )
-
-[node name="Control" type="Control" parent="."]
-margin_right = 1024.0
-margin_bottom = 600.0
-__meta__ = {
-"_edit_use_anchors_": false
-}
-
-[node name="TopLbl" type="RichTextLabel" parent="Control"]
-margin_left = 10.0
-margin_right = 1020.0
-margin_bottom = 32.0
-custom_fonts/bold_font = ExtResource( 3 )
-custom_fonts/normal_font = ExtResource( 2 )
+[node name="Info" type="RichTextLabel" parent="CanvasLayer/Control" unique_id=922490540]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 620.0
+offset_bottom = 86.0
 bbcode_enabled = true
-bbcode_text = "To advance to the next demo step, press [b]space[/b]."
-tab_size = 1
-text = "To advance to the next demo step, press space."
-__meta__ = {
-"_edit_use_anchors_": false
-}
-
-[node name="NextStepLbl" type="RichTextLabel" parent="Control"]
-margin_left = 10.0
-margin_top = 30.0
-margin_right = 1020.0
-margin_bottom = 62.0
-custom_fonts/bold_font = ExtResource( 3 )
-custom_fonts/normal_font = ExtResource( 2 )
-bbcode_enabled = true
-bbcode_text = "Next step:     Initialize navigation"
-tab_size = 1
-text = "Next step:     Initialize navigation"
-__meta__ = {
-"_edit_use_anchors_": false
-}
-
-[node name="TempLbl" type="RichTextLabel" parent="Control"]
-margin_left = 10.0
-margin_top = 60.0
-margin_right = 1020.0
-margin_bottom = 92.0
-custom_fonts/bold_font = ExtResource( 3 )
-custom_fonts/normal_font = ExtResource( 2 )
-bbcode_enabled = true
-bbcode_text = "
-"
-tab_size = 1
-text = "
-"
+fit_content = true
 scroll_active = false
-__meta__ = {
-"_edit_use_anchors_": false
-}
 
-[node name="lolMouseCursor" type="ColorRect" parent="Control"]
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-margin_right = 4.0
-margin_bottom = 4.0
-rect_rotation = 45.0
-color = Color( 0.00784314, 0.0235294, 0.976471, 1 )
-__meta__ = {
-"_edit_use_anchors_": false
-}
-
-[node name="Camera" type="Camera" parent="."]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, -10.944, 6.69301, -5.17557 )
-fov = 75.0
-script = ExtResource( 4 )
-
-[node name="Obstacle" type="RigidBody" parent="."]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, -11.9658, 1.36825, -21.6228 )
-collision_layer = 2
-collision_mask = 7
-mode = 1
-
-[node name="CollisionShape" type="CollisionShape" parent="Obstacle"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0 )
-shape = SubResource( 3 )
-
-[node name="Portal1" type="MeshInstance" parent="."]
-transform = Transform( 0.728024, 0, -0.205665, 0, 1, 0, 0.685552, 0, 0.218407, 10.7405, 8.1593, -8.13934 )
-mesh = SubResource( 5 )
-material/0 = null
-
-[node name="Portal2" type="MeshInstance" parent="."]
-transform = Transform( -0.36986, 0, -0.278726, 0, 1, 0, 0.929087, 0, -0.110958, 0.216852, 17.1793, -2.49366 )
-mesh = SubResource( 5 )
-material/0 = null
-
-[node name="Agent" type="Spatial" parent="."]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, -13.3258, -0.352671, -24.0352 )
-
-[node name="RigidBody" type="RigidBody" parent="Agent"]
-transform = Transform( 1, 0, 0, 0, -1.62921e-07, -1, 0, 1, -1.62921e-07, 0, 1.3504, 0 )
-collision_layer = 7
-collision_mask = 7
-mode = 1
-
-[node name="CollisionShape" type="CollisionShape" parent="Agent/RigidBody"]
-shape = SubResource( 6 )
-
-[node name="MeshInstance" type="MeshInstance" parent="Agent"]
-transform = Transform( 1, 0, 0, 0, -1.62921e-07, -1, 0, 1, -1.62921e-07, 0, 1.3504, 0 )
-mesh = SubResource( 7 )
-material/0 = SubResource( 8 )
-
-[node name="MeshInstance2" type="MeshInstance" parent="Agent"]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.84794, 0 )
-mesh = SubResource( 9 )
-material/0 = SubResource( 8 )
-
-[node name="MeshInstance3" type="MeshInstance" parent="Agent"]
-transform = Transform( -0.0268226, 0.00650759, 0.999619, -0.99964, -0.000174613, -0.026822, 0, -0.999979, 0.00650993, 0, 2.90269, -0.403509 )
-mesh = SubResource( 10 )
-material/0 = SubResource( 11 )
+[node name="Status" type="RichTextLabel" parent="CanvasLayer/Control" unique_id=837295135]
+layout_mode = 0
+offset_left = 16.0
+offset_top = 92.0
+offset_right = 620.0
+offset_bottom = 130.0
+bbcode_enabled = true
+fit_content = true
+scroll_active = false

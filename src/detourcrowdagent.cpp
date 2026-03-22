@@ -1,422 +1,469 @@
 #include "detourcrowdagent.h"
-#include <Node.hpp>
-#include <OS.hpp>
+
+#include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/core/error_macros.hpp>
+#include <godot_cpp/variant/array.hpp>
+
 #include <DetourCrowd.h>
 #include <DetourNavMeshQuery.h>
+
 #include "util/detourinputgeometry.h"
 
 using namespace godot;
 
-#define AGENT_SAVE_VERSION 1
+#define AGENT_SAVE_VERSION 2
 
-void
-DetourCrowdAgentParameters::_register_methods()
-{
-    register_property<DetourCrowdAgentParameters, Vector3>("position", &DetourCrowdAgentParameters::position, Vector3(0.0f, 0.0f, 0.0f));
-    register_property<DetourCrowdAgentParameters, float>("radius", &DetourCrowdAgentParameters::radius, 0.0f);
-    register_property<DetourCrowdAgentParameters, float>("height", &DetourCrowdAgentParameters::height, 0.0f);
-    register_property<DetourCrowdAgentParameters, float>("maxAcceleration", &DetourCrowdAgentParameters::maxAcceleration, 0.0f);
-    register_property<DetourCrowdAgentParameters, float>("maxSpeed", &DetourCrowdAgentParameters::maxSpeed, 0.0f);
-    register_property<DetourCrowdAgentParameters, String>("filterName", &DetourCrowdAgentParameters::filterName, "default");
-    register_property<DetourCrowdAgentParameters, bool>("anticipateTurns", &DetourCrowdAgentParameters::anticipateTurns, true);
-    register_property<DetourCrowdAgentParameters, bool>("optimizeVisibility", &DetourCrowdAgentParameters::optimizeVisibility, true);
-    register_property<DetourCrowdAgentParameters, bool>("optimizeTopology", &DetourCrowdAgentParameters::optimizeTopology, true);
-    register_property<DetourCrowdAgentParameters, bool>("avoidObstacles", &DetourCrowdAgentParameters::avoidObstacles, true);
-    register_property<DetourCrowdAgentParameters, bool>("avoidOtherAgents", &DetourCrowdAgentParameters::avoidOtherAgents, true);
-    register_property<DetourCrowdAgentParameters, int>("obstacleAvoidance", &DetourCrowdAgentParameters::obstacleAvoidance, 0);
-    register_property<DetourCrowdAgentParameters, float>("separationWeight", &DetourCrowdAgentParameters::separationWeight, 0.0f);
+void DetourCrowdAgentParameters::_bind_methods() {
+    ClassDB::bind_method(D_METHOD("get_position"), &DetourCrowdAgentParameters::get_position);
+    ClassDB::bind_method(D_METHOD("set_position", "position"), &DetourCrowdAgentParameters::set_position);
+    ClassDB::bind_method(D_METHOD("get_radius"), &DetourCrowdAgentParameters::get_radius);
+    ClassDB::bind_method(D_METHOD("set_radius", "radius"), &DetourCrowdAgentParameters::set_radius);
+    ClassDB::bind_method(D_METHOD("get_height"), &DetourCrowdAgentParameters::get_height);
+    ClassDB::bind_method(D_METHOD("set_height", "height"), &DetourCrowdAgentParameters::set_height);
+    ClassDB::bind_method(D_METHOD("get_max_acceleration"), &DetourCrowdAgentParameters::get_max_acceleration);
+    ClassDB::bind_method(D_METHOD("set_max_acceleration", "value"), &DetourCrowdAgentParameters::set_max_acceleration);
+    ClassDB::bind_method(D_METHOD("get_max_speed"), &DetourCrowdAgentParameters::get_max_speed);
+    ClassDB::bind_method(D_METHOD("set_max_speed", "value"), &DetourCrowdAgentParameters::set_max_speed);
+    ClassDB::bind_method(D_METHOD("get_filter_name"), &DetourCrowdAgentParameters::get_filter_name);
+    ClassDB::bind_method(D_METHOD("set_filter_name", "value"), &DetourCrowdAgentParameters::set_filter_name);
+    ClassDB::bind_method(D_METHOD("get_anticipate_turns"), &DetourCrowdAgentParameters::get_anticipate_turns);
+    ClassDB::bind_method(D_METHOD("set_anticipate_turns", "value"), &DetourCrowdAgentParameters::set_anticipate_turns);
+    ClassDB::bind_method(D_METHOD("get_optimize_visibility"), &DetourCrowdAgentParameters::get_optimize_visibility);
+    ClassDB::bind_method(D_METHOD("set_optimize_visibility", "value"), &DetourCrowdAgentParameters::set_optimize_visibility);
+    ClassDB::bind_method(D_METHOD("get_optimize_topology"), &DetourCrowdAgentParameters::get_optimize_topology);
+    ClassDB::bind_method(D_METHOD("set_optimize_topology", "value"), &DetourCrowdAgentParameters::set_optimize_topology);
+    ClassDB::bind_method(D_METHOD("get_avoid_obstacles"), &DetourCrowdAgentParameters::get_avoid_obstacles);
+    ClassDB::bind_method(D_METHOD("set_avoid_obstacles", "value"), &DetourCrowdAgentParameters::set_avoid_obstacles);
+    ClassDB::bind_method(D_METHOD("get_avoid_other_agents"), &DetourCrowdAgentParameters::get_avoid_other_agents);
+    ClassDB::bind_method(D_METHOD("set_avoid_other_agents", "value"), &DetourCrowdAgentParameters::set_avoid_other_agents);
+    ClassDB::bind_method(D_METHOD("get_obstacle_avoidance"), &DetourCrowdAgentParameters::get_obstacle_avoidance);
+    ClassDB::bind_method(D_METHOD("set_obstacle_avoidance", "value"), &DetourCrowdAgentParameters::set_obstacle_avoidance);
+    ClassDB::bind_method(D_METHOD("get_separation_weight"), &DetourCrowdAgentParameters::get_separation_weight);
+    ClassDB::bind_method(D_METHOD("set_separation_weight", "value"), &DetourCrowdAgentParameters::set_separation_weight);
+    ClassDB::bind_method(D_METHOD("get_movement_mode"), &DetourCrowdAgentParameters::get_movement_mode);
+    ClassDB::bind_method(D_METHOD("set_movement_mode", "value"), &DetourCrowdAgentParameters::set_movement_mode);
+
+    ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "position"), "set_position", "get_position");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "radius"), "set_radius", "get_radius");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "height"), "set_height", "get_height");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "maxAcceleration"), "set_max_acceleration", "get_max_acceleration");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "maxSpeed"), "set_max_speed", "get_max_speed");
+    ADD_PROPERTY(PropertyInfo(Variant::STRING, "filterName"), "set_filter_name", "get_filter_name");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "anticipateTurns"), "set_anticipate_turns", "get_anticipate_turns");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "optimizeVisibility"), "set_optimize_visibility", "get_optimize_visibility");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "optimizeTopology"), "set_optimize_topology", "get_optimize_topology");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "avoidObstacles"), "set_avoid_obstacles", "get_avoid_obstacles");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "avoidOtherAgents"), "set_avoid_other_agents", "get_avoid_other_agents");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "obstacleAvoidance"), "set_obstacle_avoidance", "get_obstacle_avoidance");
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "separationWeight"), "set_separation_weight", "get_separation_weight");
+    ADD_PROPERTY(PropertyInfo(Variant::INT, "movementMode"), "set_movement_mode", "get_movement_mode");
 }
 
-void
-DetourCrowdAgent::_register_methods()
-{
-    register_method("moveTowards", &DetourCrowdAgent::moveTowards);
-    register_method("stop", &DetourCrowdAgent::stop);
-    register_method("getPredictedMovement", &DetourCrowdAgent::getPredictedMovement);
+void DetourCrowdAgent::_bind_methods() {
+    ClassDB::bind_method(D_METHOD("moveTowards", "position"), &DetourCrowdAgent::move_towards);
+    ClassDB::bind_method(D_METHOD("stop"), &DetourCrowdAgent::stop);
+    ClassDB::bind_method(D_METHOD("getPredictedMovement", "current_pos", "current_dir", "position_ticks_timestamp", "max_turning_rad"), &DetourCrowdAgent::get_predicted_movement);
+    ClassDB::bind_method(D_METHOD("get_position"), &DetourCrowdAgent::get_position);
+    ClassDB::bind_method(D_METHOD("get_velocity"), &DetourCrowdAgent::get_velocity);
+    ClassDB::bind_method(D_METHOD("get_desired_velocity"), &DetourCrowdAgent::get_desired_velocity);
+    ClassDB::bind_method(D_METHOD("get_target_position"), &DetourCrowdAgent::get_target_position);
+    ClassDB::bind_method(D_METHOD("is_moving"), &DetourCrowdAgent::is_moving);
+    ClassDB::bind_method(D_METHOD("syncPosition", "position"), &DetourCrowdAgent::sync_position);
 
-    register_property<DetourCrowdAgent, Vector3>("position", &DetourCrowdAgent::_position, Vector3(0.0f, 0.0f, 0.0f));
-    register_property<DetourCrowdAgent, Vector3>("velocity", &DetourCrowdAgent::_velocity, Vector3(0.0f, 0.0f, 0.0f));
-    register_property<DetourCrowdAgent, Vector3>("target", &DetourCrowdAgent::_targetPosition, Vector3(0.0f, 0.0f, 0.0f));
-    register_property<DetourCrowdAgent, bool>("isMoving", &DetourCrowdAgent::_isMoving, false);
+    ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "position"), "", "get_position");
+    ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "velocity"), "", "get_velocity");
+    ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "desiredVelocity"), "", "get_desired_velocity");
+    ADD_PROPERTY(PropertyInfo(Variant::VECTOR3, "target"), "", "get_target_position");
+    ADD_PROPERTY(PropertyInfo(Variant::BOOL, "isMoving"), "", "is_moving");
 
-    register_signal<DetourCrowdAgent>("arrived_at_target", "node", Variant::OBJECT);
-    register_signal<DetourCrowdAgent>("no_progress", "node", Variant::OBJECT, "distanceLeft", Variant::REAL);
-    register_signal<DetourCrowdAgent>("no_movement", "node", Variant::OBJECT);
+    ADD_SIGNAL(MethodInfo("arrived_at_target", PropertyInfo(Variant::OBJECT, "node")));
+    ADD_SIGNAL(MethodInfo("no_progress", PropertyInfo(Variant::OBJECT, "node"), PropertyInfo(Variant::FLOAT, "distanceLeft")));
+    ADD_SIGNAL(MethodInfo("no_movement", PropertyInfo(Variant::OBJECT, "node")));
 }
 
 DetourCrowdAgent::DetourCrowdAgent()
-    : _agent(nullptr)
-    , _crowd(nullptr)
-    , _agentIndex(0)
-    , _crowdIndex(0)
-    , _query(nullptr)
-    , _filter(nullptr)
-    , _filterIndex(0)
-    , _inputGeom(nullptr)
-    , _isMoving(false)
-    , _state(AGENT_STATE_INVALID)
-    , _lastDistanceToTarget(0.0f)
-    , _distanceTotal(0.0f)
-{
-    _hasNewTarget = false;
-    lastUpdateTime = std::chrono::system_clock::now();
+        : _agent(nullptr),
+          _crowd(nullptr),
+          _agent_index(0),
+          _crowd_index(0),
+          _query(nullptr),
+          _filter(nullptr),
+          _filter_index(0),
+          _input_geom(nullptr),
+          _external_position(),
+          _has_new_target(false),
+          _has_pending_external_position(false),
+          _state(AGENT_STATE_INVALID),
+          _movement_mode(AGENT_MOVEMENT_MODE_SIMULATED),
+          _is_moving(false),
+          _last_distance_to_target(0.0f),
+          _distance_total(0.0f),
+          _distance_time(0.0f),
+          _movement_time(0.0f),
+          _movement_over_time(0.0f) {
+    last_update_time = std::chrono::system_clock::now();
 }
 
-DetourCrowdAgent::~DetourCrowdAgent()
-{
+DetourCrowdAgent::~DetourCrowdAgent() {}
 
+bool DetourCrowdAgent::is_moving() const {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    return _is_moving;
 }
 
-bool
-DetourCrowdAgent::save(Ref<File> targetFile)
-{
-    // Sanity check
-    if (!_agent)
-    {
+Vector3 DetourCrowdAgent::get_target_position() const {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    return _target_position;
+}
+
+Vector3 DetourCrowdAgent::get_position() const {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    return _position;
+}
+
+Vector3 DetourCrowdAgent::get_velocity() const {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    return _velocity;
+}
+
+Vector3 DetourCrowdAgent::get_desired_velocity() const {
+    return get_velocity();
+}
+
+bool DetourCrowdAgent::save(const Ref<FileAccess> &target_file) {
+    if (!_agent) {
         ERR_PRINT("AgentSave: No detour agent present!");
         return false;
     }
 
-    // Version
-    targetFile->store_16(AGENT_SAVE_VERSION);
+    target_file->store_16(AGENT_SAVE_VERSION);
+    target_file->store_32(_agent_index);
+    target_file->store_32(_crowd_index);
+    target_file->store_32(_filter_index);
+    target_file->store_32(_movement_mode);
+    target_file->store_var(_position);
+    target_file->store_var(_velocity);
+    target_file->store_var(_target_position);
+    target_file->store_8(_has_new_target.load());
+    target_file->store_8(_is_moving);
+    target_file->store_16(_state);
 
-    // Properties
-    targetFile->store_32(_agentIndex);
-    targetFile->store_32(_crowdIndex);
-    targetFile->store_32(_filterIndex);
-    targetFile->store_var(_position);
-    targetFile->store_var(_velocity);
-    targetFile->store_var(_targetPosition);
-    targetFile->store_8(_hasNewTarget.load());
-    targetFile->store_8(_isMoving);
-    targetFile->store_16(_state);
-
-    // Parameter values
-    targetFile->store_float(_agent->params.radius);
-    targetFile->store_float(_agent->params.height);
-    targetFile->store_float(_agent->params.maxAcceleration);
-    targetFile->store_float(_agent->params.maxSpeed);
-    targetFile->store_32(_agent->params.updateFlags);
-    targetFile->store_8(_agent->params.obstacleAvoidanceType);
-    targetFile->store_float(_agent->params.separationWeight);
+    target_file->store_float(_agent->params.radius);
+    target_file->store_float(_agent->params.height);
+    target_file->store_float(_agent->params.maxAcceleration);
+    target_file->store_float(_agent->params.maxSpeed);
+    target_file->store_32(_agent->params.updateFlags);
+    target_file->store_8(_agent->params.obstacleAvoidanceType);
+    target_file->store_float(_agent->params.separationWeight);
 
     return true;
 }
 
-bool
-DetourCrowdAgent::load(Ref<File> sourceFile)
-{
-    // Version
-    int version = sourceFile->get_16();
+bool DetourCrowdAgent::load(const Ref<FileAccess> &source_file) {
+    int version = source_file->get_16();
 
-    if (version == AGENT_SAVE_VERSION)
-    {
-        _agentIndex = sourceFile->get_32();
-        _crowdIndex = sourceFile->get_32();
-        _filterIndex = sourceFile->get_32();
-        _position = sourceFile->get_var(true);
-        _velocity = sourceFile->get_var(true);
-        _targetPosition= sourceFile->get_var(true);
-        _hasNewTarget = sourceFile->get_8();
-        _isMoving = sourceFile->get_8();
-        _state = (DetourCrowdAgentState)sourceFile->get_16();
-    }
-    else
-    {
+    if (version != 1 && version != AGENT_SAVE_VERSION) {
         ERR_PRINT(String("Unable to load agent. Unknown save version: {0}").format(Array::make(version)));
         return false;
     }
 
+    _agent_index = source_file->get_32();
+    _crowd_index = source_file->get_32();
+    _filter_index = source_file->get_32();
+    _movement_mode = version >= 2 ? source_file->get_32() : AGENT_MOVEMENT_MODE_SIMULATED;
+    _position = source_file->get_var(true);
+    _velocity = source_file->get_var(true);
+    _target_position = source_file->get_var(true);
+    _external_position = _position;
+    _has_pending_external_position = false;
+    _has_new_target = source_file->get_8();
+    _is_moving = source_file->get_8();
+    _state = static_cast<DetourCrowdAgentState>(source_file->get_16());
     return true;
 }
 
-bool
-DetourCrowdAgent::loadParameterValues(Ref<DetourCrowdAgentParameters> params, Ref<File> sourceFile)
-{
-    params->radius = sourceFile->get_float();
-    params->height = sourceFile->get_float();
-    params->maxAcceleration = sourceFile->get_float();
-    params->maxSpeed = sourceFile->get_float();
+bool DetourCrowdAgent::load_parameter_values(const Ref<DetourCrowdAgentParameters> &params, const Ref<FileAccess> &source_file) {
+    params->radius = source_file->get_float();
+    params->height = source_file->get_float();
+    params->maxAcceleration = source_file->get_float();
+    params->maxSpeed = source_file->get_float();
     params->position = _position;
-    int updateFlags = sourceFile->get_32();
-    params->anticipateTurns = updateFlags & DT_CROWD_ANTICIPATE_TURNS;
-    params->optimizeVisibility = updateFlags & DT_CROWD_OPTIMIZE_VIS;
-    params->optimizeTopology = updateFlags & DT_CROWD_OPTIMIZE_TOPO;
-    params->avoidObstacles = updateFlags & DT_CROWD_OBSTACLE_AVOIDANCE;
-    params->avoidOtherAgents = updateFlags & DT_CROWD_SEPARATION;
-    params->obstacleAvoidance = sourceFile->get_8();
-    params->separationWeight = sourceFile->get_float();
-
+    int update_flags = source_file->get_32();
+    params->anticipateTurns = update_flags & DT_CROWD_ANTICIPATE_TURNS;
+    params->optimizeVisibility = update_flags & DT_CROWD_OPTIMIZE_VIS;
+    params->optimizeTopology = update_flags & DT_CROWD_OPTIMIZE_TOPO;
+    params->avoidObstacles = update_flags & DT_CROWD_OBSTACLE_AVOIDANCE;
+    params->avoidOtherAgents = update_flags & DT_CROWD_SEPARATION;
+    params->obstacleAvoidance = source_file->get_8();
+    params->separationWeight = source_file->get_float();
+    params->movementMode = _movement_mode;
     return true;
 }
 
-void
-DetourCrowdAgent::setMainAgent(dtCrowdAgent* crowdAgent, dtCrowd* crowd, int index, dtNavMeshQuery* query, DetourInputGeometry* geom, int crowdIndex)
-{
-    _agent = crowdAgent;
+void DetourCrowdAgent::set_movement_mode(int movement_mode) {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    _movement_mode = movement_mode;
+}
+
+void DetourCrowdAgent::set_main_agent(dtCrowdAgent *crowd_agent, dtCrowd *crowd, int index, dtNavMeshQuery *query, DetourInputGeometry *geom, int crowd_index) {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    _agent = crowd_agent;
     _crowd = crowd;
-    _agentIndex = index;
-    _crowdIndex = crowdIndex;
+    _agent_index = index;
+    _crowd_index = crowd_index;
     _query = query;
-    _inputGeom = geom;
+    if (_crowd != nullptr) {
+        _filter = _crowd->getEditableFilter(_filter_index);
+    }
+    _input_geom = geom;
     _state = AGENT_STATE_IDLE;
-    _distanceTotal = 0.0f;
-    _lastDistanceToTarget = 0.0f;
-    _distanceTime = 0.0f;
-    _movementOverTime = 0.0f;
-    _movementTime = 0.0f;
-    _lastPosition = Vector3(_agent->npos[0], _agent->npos[1], _agent->npos[2]);
+    _distance_total = 0.0f;
+    _last_distance_to_target = 0.0f;
+    _distance_time = 0.0f;
+    _movement_over_time = 0.0f;
+    _movement_time = 0.0f;
+    _last_position = Vector3(_agent->npos[0], _agent->npos[1], _agent->npos[2]);
+    _position = _last_position;
+    _external_position = _last_position;
 }
 
-void
-DetourCrowdAgent::setFilter(int filterIndex)
-{
-    _filter = _crowd->getEditableFilter(filterIndex);
-    _filterIndex = filterIndex;
+void DetourCrowdAgent::set_filter(int filter_index) {
+    _filter_index = filter_index;
+    if (_crowd != nullptr) {
+        _filter = _crowd->getEditableFilter(filter_index);
+    }
 }
 
-void
-DetourCrowdAgent::addShadowAgent(dtCrowdAgent* crowdAgent)
-{
-    _shadows.push_back(crowdAgent);
+void DetourCrowdAgent::add_shadow_agent(dtCrowdAgent *crowd_agent) {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    _shadows.push_back(crowd_agent);
 }
 
-void
-DetourCrowdAgent::moveTowards(Vector3 position)
-{
-    _targetPosition = position;
-    _hasNewTarget = true;
-    _distanceTotal = 0.0f;
-    _lastDistanceToTarget = 0.0f;
-    _movementTime = 0.0f;
-    _movementOverTime = 0.0f;
-    _lastPosition = _position;
+void DetourCrowdAgent::move_towards(Vector3 position) {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    _target_position = position;
+    _has_new_target = true;
+    _distance_total = 0.0f;
+    _last_distance_to_target = 0.0f;
+    _movement_time = 0.0f;
+    _movement_over_time = 0.0f;
+    _last_position = _position;
 }
 
-void
-DetourCrowdAgent::applyNewTarget()
-{
-    if (!_hasNewTarget)
-    {
+void DetourCrowdAgent::sync_position(Vector3 position) {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    _external_position = position;
+    _position = position;
+    _has_pending_external_position = true;
+}
+
+void DetourCrowdAgent::prepare_for_tick() {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    if (_movement_mode != AGENT_MOVEMENT_MODE_EXTERNAL || _agent == nullptr) {
         return;
     }
-    _hasNewTarget = false;
 
-    // Get the final target position and poly reference
-    // TODO: Optimization, create new method to assign same target to multiple agents at once (only one findNearestPoly per agent)
-    dtPolyRef targetRef;
-    float finalTargetPos[3];
-    const float* halfExtents = _crowd->getQueryExtents();
-    finalTargetPos[0] = 0.0f;
-    finalTargetPos[1] = 0.0f;
-    finalTargetPos[2] = 0.0f;
-    float pos[3];
-    pos[0] = _targetPosition.x;
-    pos[1] = _targetPosition.y;
-    pos[2] = _targetPosition.z;
-    float extents[3];
-    extents[0] = halfExtents[0] * 1.0f;
-    extents[1] = halfExtents[1] * 1.0f;
-    extents[2] = halfExtents[2] * 1.0f;
+    if (_has_pending_external_position) {
+        _has_pending_external_position = false;
+    }
 
-    // Do the query to find the nearest poly & point
-    dtStatus status = _query->findNearestPoly(pos, extents, _filter, &targetRef, finalTargetPos);
-    if (dtStatusFailed(status))
-    {
-        _hasNewTarget = true;
+    _agent->npos[0] = _external_position.x;
+    _agent->npos[1] = _external_position.y;
+    _agent->npos[2] = _external_position.z;
+    for (dtCrowdAgent *shadow : _shadows) {
+        shadow->npos[0] = _external_position.x;
+        shadow->npos[1] = _external_position.y;
+        shadow->npos[2] = _external_position.z;
+    }
+}
+
+void DetourCrowdAgent::apply_new_target() {
+    if (!_has_new_target) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    if (_crowd == nullptr || _query == nullptr || _filter == nullptr) {
+        _has_new_target = true;
+        ERR_PRINT("applyNewTarget: Agent query/filter not initialized yet.");
+        return;
+    }
+    _has_new_target = false;
+
+    dtPolyRef target_ref;
+    float final_target_pos[3] = {};
+    const float *half_extents = _crowd->getQueryExtents();
+    float pos[3] = { _target_position.x, _target_position.y, _target_position.z };
+    float extents[3] = { half_extents[0], half_extents[1], half_extents[2] };
+
+    dtStatus status = _query->findNearestPoly(pos, extents, _filter, &target_ref, final_target_pos);
+    if (dtStatusFailed(status)) {
+        _has_new_target = true;
         ERR_PRINT(String("applyNewTarget: findPoly failed: {0}").format(Array::make(status)));
         return;
     }
 
-    // Set the movement target
-    if (!_crowd->requestMoveTarget(_agentIndex, targetRef, finalTargetPos))
-    {
+    if (!_crowd->requestMoveTarget(_agent_index, target_ref, final_target_pos)) {
         ERR_PRINT("Unable to request detour move target.");
     }
     _state = AGENT_STATE_GOING_TO_TARGET;
 }
 
-void
-DetourCrowdAgent::stop()
-{
-    // Stop all movement
-    _crowd->resetMoveTarget(_agentIndex);
-    _hasNewTarget = false;
-    _isMoving = false;
+void DetourCrowdAgent::stop() {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    _crowd->resetMoveTarget(_agent_index);
+    _has_new_target = false;
+    _is_moving = false;
     _state = AGENT_STATE_IDLE;
-    _distanceTotal = 0.0f;
-    _lastDistanceToTarget = 0.0f;
-    _distanceTime = 0.0f;
-    _movementTime = 0.0f;
-    _movementOverTime = 0.0f;
+    _distance_total = 0.0f;
+    _last_distance_to_target = 0.0f;
+    _distance_time = 0.0f;
+    _movement_time = 0.0f;
+    _movement_over_time = 0.0f;
 }
 
-Dictionary
-DetourCrowdAgent::getPredictedMovement(Vector3 currentPos, Vector3 currentDir, int64_t positionTicksTimestamp, float maxTurningRad)
-{
+Dictionary DetourCrowdAgent::get_predicted_movement(Vector3 current_pos, Vector3 current_dir, int64_t position_ticks_timestamp, float max_turning_rad) {
     Dictionary result;
 
-    // Get the time since the last internal update in milliseconds
-    auto timeSinceUpdate = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - lastUpdateTime).count();
-    float secondsPassed = timeSinceUpdate / 1000.0f;
+    auto time_since_update = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - last_update_time).count();
+    float seconds_passed = time_since_update / 1000.0f;
 
-    // Calculate the point where the agent itself would be now
-    Vector3 velToUse = _velocity.length() <= 0.01f ? currentDir : _velocity;
-    Vector3 agentTargetPos = _position + secondsPassed * velToUse;
-
-    // If we are already at the target position, no need to calculate the rest
-    float distance = currentPos.distance_to(agentTargetPos);
-    if (distance < 0.01f)
-    {
-        result["position"] = currentPos;
-        velToUse.y = 0.0f;
-        velToUse.normalize();
-        result["direction"] = velToUse;
+    Vector3 vel_to_use = _velocity.length() <= 0.01f ? current_dir : _velocity;
+    Vector3 agent_target_pos = _position + seconds_passed * vel_to_use;
+    float distance = current_pos.distance_to(agent_target_pos);
+    if (distance < 0.01f) {
+        result["position"] = current_pos;
+        vel_to_use.y = 0.0f;
+        vel_to_use = vel_to_use.normalized();
+        result["direction"] = vel_to_use;
         return result;
     }
 
-    // Get the seconds since the timestamp and the direction
-    float secondsSinceTimestamp = (OS::get_singleton()->get_ticks_msec() - positionTicksTimestamp) / 1000.0f;
-    Vector3 direction = agentTargetPos - currentPos;
-    direction.normalize();
-
-    // Make sure we don't go too far
-    float lengthToUse = velToUse.length();
-    Vector3 movement = secondsSinceTimestamp * (direction * lengthToUse);
-    if (movement.length() > distance)
-    {
+    float seconds_since_timestamp = (Time::get_singleton()->get_ticks_msec() - position_ticks_timestamp) / 1000.0f;
+    Vector3 direction = (agent_target_pos - current_pos).normalized();
+    float length_to_use = vel_to_use.length();
+    Vector3 movement = seconds_since_timestamp * (direction * length_to_use);
+    if (movement.length() > distance) {
         movement = movement.normalized() * distance;
     }
 
-    // Interpolate the facing direction with a maximum turning amount
     direction.y = 0.0f;
-    direction.normalize();
-    float turningRad = currentDir.angle_to(direction);
-    turningRad = currentDir.cross(direction).y > 0.0f ? turningRad : -turningRad;
-    if (fabs(turningRad) > maxTurningRad)
-    {
-        turningRad = turningRad < 0.0f ? -maxTurningRad : maxTurningRad;
+    direction = direction.normalized();
+    float turning_rad = current_dir.angle_to(direction);
+    turning_rad = current_dir.cross(direction).y > 0.0f ? turning_rad : -turning_rad;
+    if (Math::abs(turning_rad) > max_turning_rad) {
+        turning_rad = turning_rad < 0.0f ? -max_turning_rad : max_turning_rad;
     }
-    Vector3 newDirection = currentDir.rotated(Vector3(0.0f, 1.0f, 0.0f), turningRad);
 
-    // Apply movement
-    Vector3 predictedPos = currentPos + movement;
-    result["position"] = predictedPos;
-    result["direction"] = newDirection;
+    result["position"] = current_pos + movement;
+    result["direction"] = current_dir.rotated(Vector3(0.0f, 1.0f, 0.0f), turning_rad);
     return result;
 }
 
-void
-DetourCrowdAgent::update(float secondsSinceLastTick)
-{
-    // Update all the shadows with the main agent's values
-    for (int i = 0; i < _shadows.size(); ++i)
-    {
-        _shadows[i]->npos[0] = _agent->npos[0];
-        _shadows[i]->npos[1] = _agent->npos[1];
-        _shadows[i]->npos[2] = _agent->npos[2];
+void DetourCrowdAgent::update(float seconds_since_last_tick) {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    _velocity = Vector3(_agent->vel[0], _agent->vel[1], _agent->vel[2]);
+
+    if (_movement_mode == AGENT_MOVEMENT_MODE_EXTERNAL) {
+        _position = _external_position;
+
+        if (_state == AGENT_STATE_GOING_TO_TARGET) {
+            const float distance_to_target = _target_position.distance_to(_external_position);
+            _is_moving = _velocity.length_squared() > 0.001f;
+            if (distance_to_target < 0.1f) {
+                _is_moving = false;
+                _crowd->resetMoveTarget(_agent_index);
+                _state = AGENT_STATE_IDLE;
+            }
+            _last_distance_to_target = distance_to_target;
+        } else {
+            _is_moving = false;
+        }
+
+        _agent->npos[0] = _external_position.x;
+        _agent->npos[1] = _external_position.y;
+        _agent->npos[2] = _external_position.z;
+        for (dtCrowdAgent *shadow : _shadows) {
+            shadow->npos[0] = _external_position.x;
+            shadow->npos[1] = _external_position.y;
+            shadow->npos[2] = _external_position.z;
+        }
+        _last_position = _external_position;
+        return;
     }
 
-    _position.x = _agent->npos[0];
-    _position.y = _agent->npos[1];
-    _position.z = _agent->npos[2];
-    _velocity.x = _agent->vel[0];
-    _velocity.y = _agent->vel[1];
-    _velocity.z = _agent->vel[2];
+    for (dtCrowdAgent *shadow : _shadows) {
+        shadow->npos[0] = _agent->npos[0];
+        shadow->npos[1] = _agent->npos[1];
+        shadow->npos[2] = _agent->npos[2];
+    }
 
-    // Various state-dependent calculations
-    switch(_state)
-    {
-        case AGENT_STATE_GOING_TO_TARGET:
-        {
-            // Update the values available to GDScript
-            lastUpdateTime = std::chrono::system_clock::now();
+    _position = Vector3(_agent->npos[0], _agent->npos[1], _agent->npos[2]);
 
-            // Get distance to target and other statistics
-            float distanceToTarget = _targetPosition.distance_to(_position);
-            _distanceTime += secondsSinceLastTick;
-            _distanceTotal += fabs(_lastDistanceToTarget - distanceToTarget);
+    switch (_state) {
+        case AGENT_STATE_GOING_TO_TARGET: {
+            last_update_time = std::chrono::system_clock::now();
+            float distance_to_target = _target_position.distance_to(_position);
+            _distance_time += seconds_since_last_tick;
+            _distance_total += Math::abs(_last_distance_to_target - distance_to_target);
+            _movement_over_time += _position.distance_squared_to(_last_position);
+            _is_moving = _movement_over_time > 0.001f;
 
-            _movementOverTime += _position.distance_squared_to(_lastPosition);
-
-            // Mark moving or not
-            if (_movementOverTime <= 0.001f)
-            {
-                _isMoving = false;
-            }
-            else {
-                _isMoving = true;
+            if (_is_moving && _velocity.length_squared() <= 0.001f) {
+                _velocity = (_position - _last_position).normalized() / seconds_since_last_tick;
             }
 
-            // If we are moving but have no velocity (most likely using off-mesh connection), fake it
-            if (_isMoving && _velocity.length_squared() <= 0.001f)
-            {
-                _velocity = _position - _lastPosition;
-                _velocity = _velocity.normalized() / secondsSinceLastTick;
-            }
+            _last_position = _position;
+            _movement_time += seconds_since_last_tick;
 
-            // Remember last position for next tick
-            _lastPosition = _position;
-            _movementTime += secondsSinceLastTick;
-
-            // If the agent has not moved noticeably in a while, report that
-            if (_movementTime >= 1.0f)
-            {
-                _movementTime -= 1.0f;
-                if (_movementOverTime < (_agent->params.maxSpeed * 0.01f))
-                {
-                    emit_signal("no_movement", this, distanceToTarget);
+            if (_movement_time >= 1.0f) {
+                _movement_time -= 1.0f;
+                if (_movement_over_time < (_agent->params.maxSpeed * 0.01f)) {
+                    // Signals are disabled here because update() runs on the navigation worker thread.
                 }
-                _movementOverTime = 0.0f;
+                _movement_over_time = 0.0f;
             }
 
-            // If we haven't made enough progress in a second, tell the user
-            if (_distanceTime >= 5.0f)
-            {
-                _distanceTime -= 5.0f;
-                if (_distanceTotal < (_agent->params.maxSpeed * 0.03f))
-                {
-                    emit_signal("no_progress", this, distanceToTarget);
+            if (_distance_time >= 5.0f) {
+                _distance_time -= 5.0f;
+                if (_distance_total < (_agent->params.maxSpeed * 0.03f)) {
+                    // Signals are disabled here because update() runs on the navigation worker thread.
                 }
-                _distanceTotal = 0.0f;
+                _distance_total = 0.0f;
             }
 
-            // Arrived?
-            if (distanceToTarget < 0.1f)
-            {
-                _isMoving = false;
-                _crowd->resetMoveTarget(_agentIndex);
+            if (distance_to_target < 0.1f) {
+                _is_moving = false;
+                _crowd->resetMoveTarget(_agent_index);
                 _state = AGENT_STATE_IDLE;
-                _distanceTotal = 0.0f;
-                _lastDistanceToTarget = 0.0f;
-                _distanceTime = 0.0f;
-                _movementTime = 0.0f;
-                _movementOverTime = 0.0f;
-                emit_signal("arrived_at_target", this);
+                _distance_total = 0.0f;
+                _last_distance_to_target = 0.0f;
+                _distance_time = 0.0f;
+                _movement_time = 0.0f;
+                _movement_over_time = 0.0f;
             }
-            _lastDistanceToTarget = distanceToTarget;
+            _last_distance_to_target = distance_to_target;
+        } break;
+        default:
             break;
-        }
     }
 }
 
-void
-DetourCrowdAgent::destroy()
-{
-    // In contrast to obstacles, agents really shouldn't be removed during the thread update, so this has to be done thread safe
+void DetourCrowdAgent::destroy() {
+    std::lock_guard<std::mutex> lock(_state_mutex);
+    if (!_agent) {
+        return;
+    }
 
-    // Simply setting an agent's active value to false should remove it from all detour calculations
     _agent->active = false;
-    for (int i = 0; i < _shadows.size(); ++i)
-    {
-        _shadows[i]->active = false;
+    for (dtCrowdAgent *shadow : _shadows) {
+        shadow->active = false;
     }
     _shadows.clear();
     _agent = nullptr;
-    _isMoving = false;
-    _distanceTotal = 0.0f;
-    _lastDistanceToTarget = 0.0f;
-    _distanceTime = 0.0f;
-    _movementTime = 0.0f;
-    _movementOverTime = 0.0f;
+    _is_moving = false;
+    _distance_total = 0.0f;
+    _last_distance_to_target = 0.0f;
+    _distance_time = 0.0f;
+    _movement_time = 0.0f;
+    _movement_over_time = 0.0f;
 }

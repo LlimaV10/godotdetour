@@ -36,6 +36,8 @@ godotdetour.pro.user
 build-recastnavigation-Desktop-Default/
 godotdetour.pro.user.4.10-pre1
 demo/.import/
+demo/.godot/
+demo/android/
 build-recastnavigation-Desktop-Debug/
 godotdetour.pro.user.4edfed0
 godotdetour.pro.user.9c7fcd9

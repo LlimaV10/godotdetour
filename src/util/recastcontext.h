@@ -1,21 +1,23 @@
 #ifndef RECASTCONTEXT_H
 #define RECASTCONTEXT_H
 
-#include <Godot.hpp>
+#include <godot_cpp/classes/time.hpp>
+#include <godot_cpp/core/error_macros.hpp>
+#include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/string.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
+
 #include <Recast.h>
+
 #include <map>
 
-/**
- * @brief Provides recast an interface for logging, performance timers, etc.
- */
-class RecastContext : public rcContext
-{
+class RecastContext : public rcContext {
 public:
     RecastContext();
 
 protected:
     virtual void doResetLog();
-    virtual void doLog(const rcLogCategory category, const char* msg, const int len);
+    virtual void doLog(const rcLogCategory category, const char *msg, const int len);
     virtual void doResetTimers();
     virtual void doStartTimer(const rcTimerLabel label);
     virtual void doStopTimer(const rcTimerLabel label);

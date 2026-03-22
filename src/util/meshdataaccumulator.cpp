@@ -1,22 +1,20 @@
 #include "meshdataaccumulator.h"
 
-#include <MeshDataTool.hpp>
-#include <PoolArrays.hpp>
-#include <Mesh.hpp>
-#include <Material.hpp>
-#include <File.hpp>
+#include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
+
 #include "godotgeometryparser.h"
 
 using namespace godot;
 
 #define MDA_SAVE_VERSION 1
 
-MeshDataAccumulator::MeshDataAccumulator(MeshInstance* meshInstance)
+MeshDataAccumulator::MeshDataAccumulator(MeshInstance3D *meshInstance)
 {
     GodotGeometryParser parser;
     parser.getNodeVerticesAndIndices(meshInstance, _vertices, _triangles);
 
-    Godot::print("Got vertices and triangles...");
+    UtilityFunctions::print("Got vertices and triangles...");
 
     // Copy normals (we can't just copy them from the MeshDataTool since we operate on transformed values)
     // Code below mostly taken from recastnavigation sample
@@ -46,7 +44,7 @@ MeshDataAccumulator::MeshDataAccumulator(MeshInstance* meshInstance)
             n[2] *= d;
         }
     }
-    Godot::print("Got normals...");
+    UtilityFunctions::print("Got normals...");
 }
 
 MeshDataAccumulator::MeshDataAccumulator()
@@ -61,7 +59,7 @@ MeshDataAccumulator::~MeshDataAccumulator()
 }
 
 void
-MeshDataAccumulator::save(Ref<File> targetFile)
+MeshDataAccumulator::save(const Ref<FileAccess> &targetFile)
 {
     // Store version
     targetFile->store_16(MDA_SAVE_VERSION);
@@ -89,7 +87,7 @@ MeshDataAccumulator::save(Ref<File> targetFile)
 }
 
 bool
-MeshDataAccumulator::load(Ref<File> sourceFile)
+MeshDataAccumulator::load(const Ref<FileAccess> &sourceFile)
 {
     // Load version
     int version = sourceFile->get_16();
