@@ -9,10 +9,14 @@ extends RefCounted
 signal navigation_tick_done(executionTimeSeconds: float)
 
 
-## Builds the navigation system from a `MeshInstance3D` and starts the internal
-## threaded update loop in the current implementation.
+## Builds the navigation system from either a single `MeshInstance3D` or an
+## `Array[MeshInstance3D]` and starts the internal threaded update loop in the
+## current implementation.
 ## If you create agents with external movement mode, the thread still computes
 ## steering, but your scene is expected to move those actors itself.
+## Source-geometry chunk X/Z bounds are frozen at initialization time; later
+## chunk updates must stay within those original horizontal extents. Vertical
+## growth is allowed.
 func initialize(input_mesh_instance: Variant, parameters: DetourNavigationParameters) -> bool:
 	return false
 
@@ -24,10 +28,38 @@ func tick(delta_seconds: float = -1.0) -> void:
 	pass
 
 
-## Rebuilds navigation tiles affected by changed convex areas or off-mesh
-## connections.
+## Rebuilds navigation tiles affected by changed convex areas, off-mesh
+## connections, or source-geometry chunk updates/removals.
 func rebuildChangedTiles() -> void:
 	pass
+
+
+## Adds a new source-geometry chunk and returns its internal chunk ID.
+## The chunk must stay within the horizontal navmesh bounds frozen during
+## `initialize()`. Vertical growth is allowed. Call `rebuildChangedTiles()`
+## after batching chunk edits.
+func addSourceGeometryChunk(input_mesh_instance: Variant) -> int:
+	return -1
+
+
+## Replaces the geometry for an existing source-geometry chunk.
+## The updated chunk must stay within the horizontal navmesh bounds frozen
+## during `initialize()`. Vertical growth is allowed. Call
+## `rebuildChangedTiles()` after batching chunk edits.
+func updateSourceGeometryChunk(chunk_id: int, input_mesh_instance: Variant) -> bool:
+	return false
+
+
+## Removes an existing source-geometry chunk.
+## Removing the last remaining chunk is rejected; clear the navigation
+## instance instead. Call `rebuildChangedTiles()` after batching chunk edits.
+func removeSourceGeometryChunk(chunk_id: int) -> bool:
+	return false
+
+
+## Returns the currently tracked source-geometry chunk IDs.
+func getSourceGeometryChunkIDs() -> Array:
+	return []
 
 
 ## Marks a convex navigation area and returns its internal ID.

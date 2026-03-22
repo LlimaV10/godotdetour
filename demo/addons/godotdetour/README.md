@@ -176,17 +176,65 @@ func _process(_delta: float) -> void:
 	$Actor.global_position = agent.position
 ```
 
-## 6. DetourNavigation API
+## 6. Chunked source geometry
+
+The current fork can now manage the source mesh as multiple chunks, but there
+is one hard constraint:
+
+- horizontal navmesh bounds are frozen during `initialize()`
+- later chunk adds/updates must remain inside those original X/Z bounds
+- vertical growth is allowed; chunk geometry can introduce higher or lower walkable regions later
+- if you need a larger streamed world footprint, initialize with all expected
+  chunks already present or reinitialize with a larger combined source
+
+You can initialize from multiple chunks directly:
+
+```gdscript
+var chunks: Array[MeshInstance3D] = [$ChunkA, $ChunkB, $ChunkC]
+navigation.initialize(chunks, nav_params)
+```
+
+At runtime you can manage chunks explicitly:
+
+```gdscript
+var chunk_id := navigation.addSourceGeometryChunk($ChunkD)
+if chunk_id >= 0:
+	navigation.rebuildChangedTiles()
+
+navigation.updateSourceGeometryChunk(chunk_id, $ChunkDUpdated)
+navigation.rebuildChangedTiles()
+
+navigation.removeSourceGeometryChunk(chunk_id)
+navigation.rebuildChangedTiles()
+```
+
+Useful notes:
+
+- `getSourceGeometryChunkIDs()` returns the currently tracked chunk IDs
+- chunk edits only affect the touched X/Z tile columns when `rebuildChangedTiles()` runs
+- geometry chunk rebuilds regenerate full affected tile columns, which is more expensive than obstacle updates but more robust for holes and newly added elevated regions
+- removing the last remaining chunk is rejected; use `clear()` if you want to tear the whole navigation instance down
+
+## 7. DetourNavigation API
 
 ### Methods
 
 - `initialize(input_mesh_instance: Variant, parameters: DetourNavigationParameters) -> bool`
-  - Builds navmeshes from a `MeshInstance3D`.
+  - Builds navmeshes from either a single `MeshInstance3D` or an `Array[MeshInstance3D]`.
 - `tick(delta_seconds: float = -1.0) -> void`
   - Manually advances the simulation.
   - Mostly useful for debugging or if you want a main-thread integration model.
 - `rebuildChangedTiles() -> void`
-  - Rebuilds tiles after changing marked areas or off-mesh connections.
+  - Rebuilds tiles after changing marked areas, off-mesh connections, or source geometry chunks.
+  - Source geometry chunk changes rebuild full affected tile columns so new vertical layers can appear.
+- `addSourceGeometryChunk(input_mesh_instance: Variant) -> int`
+  - Adds a source-geometry chunk inside the frozen horizontal navmesh bounds and returns its chunk ID.
+- `updateSourceGeometryChunk(chunk_id: int, input_mesh_instance: Variant) -> bool`
+  - Replaces an existing source-geometry chunk.
+- `removeSourceGeometryChunk(chunk_id: int) -> bool`
+  - Removes an existing source-geometry chunk.
+- `getSourceGeometryChunkIDs() -> Array`
+  - Returns the tracked source chunk IDs.
 - `markConvexArea(vertices: Array, height: float, area_type: int) -> int`
   - Marks a convex area on the source geometry.
 - `addOffMeshConnection(from: Vector3, to: Vector3, bidirectional: bool, radius: float, area_type: int) -> int`
@@ -215,7 +263,7 @@ Current note:
 
 - This signal exists in the class binding, but the current code does not emit it. Do not rely on it.
 
-## 7. DetourNavigationParameters
+## 8. DetourNavigationParameters
 
 ### Properties
 
@@ -226,7 +274,7 @@ Current note:
 - `maxObstacles: int`
 - `defaultAreaType: int`
 
-## 8. DetourNavigationMeshParameters
+## 9. DetourNavigationMeshParameters
 
 ### Properties
 
@@ -248,7 +296,7 @@ Current note:
 
 These parameters control the generated Recast navmesh and crowd limits. The demo scene in `res://main.gd` is the best working reference for values that are currently known to behave correctly in this port.
 
-## 9. Query filters
+## 10. Query filters
 
 Agents choose a named filter through `DetourCrowdAgentParameters.filterName`.
 

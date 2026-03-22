@@ -45,6 +45,10 @@ void DetourNavigation::_bind_methods() {
     ClassDB::bind_method(D_METHOD("initialize", "input_mesh_instance", "parameters"), &DetourNavigation::initialize);
     ClassDB::bind_method(D_METHOD("tick", "delta_seconds"), &DetourNavigation::tick, DEFVAL(-1.0f));
     ClassDB::bind_method(D_METHOD("rebuildChangedTiles"), &DetourNavigation::rebuild_changed_tiles);
+    ClassDB::bind_method(D_METHOD("addSourceGeometryChunk", "input_mesh_instance"), &DetourNavigation::add_source_geometry_chunk);
+    ClassDB::bind_method(D_METHOD("updateSourceGeometryChunk", "chunk_id", "input_mesh_instance"), &DetourNavigation::update_source_geometry_chunk);
+    ClassDB::bind_method(D_METHOD("removeSourceGeometryChunk", "chunk_id"), &DetourNavigation::remove_source_geometry_chunk);
+    ClassDB::bind_method(D_METHOD("getSourceGeometryChunkIDs"), &DetourNavigation::get_source_geometry_chunk_ids);
     ClassDB::bind_method(D_METHOD("markConvexArea", "vertices", "height", "area_type"), &DetourNavigation::mark_convex_area);
     ClassDB::bind_method(D_METHOD("addAgent", "parameters"), &DetourNavigation::add_agent);
     ClassDB::bind_method(D_METHOD("removeAgent", "agent"), &DetourNavigation::remove_agent);
@@ -109,22 +113,50 @@ bool DetourNavigation::initialize(const Variant &input_mesh_instance, const Ref<
         return false;
     }
 
-    MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(input_mesh_instance.operator Object *());
-    if (mesh_instance == nullptr) {
-        ERR_PRINT("Passed inputMesh must be of type MeshInstance3D.");
-        return false;
+    _input_geometry->clearData();
+
+    if (input_mesh_instance.get_type() == Variant::ARRAY) {
+        Array mesh_instances = input_mesh_instance;
+        if (mesh_instances.is_empty()) {
+            ERR_PRINT("Passed inputMesh array is empty.");
+            return false;
+        }
+        for (int i = 0; i < mesh_instances.size(); ++i) {
+            MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(mesh_instances[i].operator Object *());
+            if (mesh_instance == nullptr) {
+                ERR_PRINT(String("Passed inputMesh array item is not a MeshInstance3D: {0}").format(Array::make(i)));
+                return false;
+            }
+            Ref<Mesh> mesh_to_convert = mesh_instance->get_mesh();
+            if (mesh_to_convert.is_null()) {
+                ERR_PRINT(String("Passed MeshInstance3D does not have a mesh: {0}").format(Array::make(i)));
+                return false;
+            }
+            if (_input_geometry->addMeshChunk(_recast_context, mesh_instance) < 0) {
+                ERR_PRINT(String("Input geometry failed to load mesh chunk: {0}").format(Array::make(i)));
+                return false;
+            }
+        }
+    } else {
+        MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(input_mesh_instance.operator Object *());
+        if (mesh_instance == nullptr) {
+            ERR_PRINT("Passed inputMesh must be of type MeshInstance3D or Array[MeshInstance3D].");
+            return false;
+        }
+
+        Ref<Mesh> mesh_to_convert = mesh_instance->get_mesh();
+        if (mesh_to_convert.is_null()) {
+            ERR_PRINT("Passed MeshInstance3D does not have a mesh.");
+            return false;
+        }
+
+        if (!_input_geometry->loadMesh(_recast_context, mesh_instance)) {
+            ERR_PRINT("Input geometry failed to load the mesh.");
+            return false;
+        }
     }
 
-    Ref<Mesh> mesh_to_convert = mesh_instance->get_mesh();
-    if (mesh_to_convert.is_null()) {
-        ERR_PRINT("Passed MeshInstance3D does not have a mesh.");
-        return false;
-    }
-
-    if (!_input_geometry->loadMesh(_recast_context, mesh_instance)) {
-        ERR_PRINT("Input geometry failed to load the mesh.");
-        return false;
-    }
+    _input_geometry->freezeNavMeshBounds();
 
     _ticks_per_second = parameters->ticksPerSecond;
     _max_obstacles = parameters->maxObstacles;
@@ -192,7 +224,82 @@ void DetourNavigation::rebuild_changed_tiles() {
     for (int i = 0; i < _input_geometry->getOffMeshConnectionCount(); ++i) {
         _input_geometry->getOffMeshConnectionNew()[i] = false;
     }
+    _input_geometry->clearChunkChanges();
     _navigation_mutex->unlock();
+}
+
+int DetourNavigation::add_source_geometry_chunk(const Variant &input_mesh_instance) {
+    if (!_initialized) {
+        ERR_PRINT("DetourNavigation: Navigation must be initialized before adding source chunks.");
+        return -1;
+    }
+
+    MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(input_mesh_instance.operator Object *());
+    if (mesh_instance == nullptr) {
+        ERR_PRINT("DetourNavigation: Source chunk must be a MeshInstance3D.");
+        return -1;
+    }
+
+    Ref<Mesh> mesh_to_convert = mesh_instance->get_mesh();
+    if (mesh_to_convert.is_null()) {
+        ERR_PRINT("DetourNavigation: Source chunk MeshInstance3D does not have a mesh.");
+        return -1;
+    }
+
+    if (!_input_geometry->canUseChunkMeshWithinFrozenNavBounds(mesh_instance)) {
+        ERR_PRINT("DetourNavigation: Source chunk exceeds the navmesh bounds frozen during initialize(). Reinitialize with all required chunks loaded.");
+        return -1;
+    }
+
+    _navigation_mutex->lock();
+    int chunk_id = _input_geometry->addMeshChunk(_recast_context, mesh_instance);
+    _navigation_mutex->unlock();
+    return chunk_id;
+}
+
+bool DetourNavigation::update_source_geometry_chunk(int chunk_id, const Variant &input_mesh_instance) {
+    if (!_initialized) {
+        ERR_PRINT("DetourNavigation: Navigation must be initialized before updating source chunks.");
+        return false;
+    }
+
+    MeshInstance3D *mesh_instance = Object::cast_to<MeshInstance3D>(input_mesh_instance.operator Object *());
+    if (mesh_instance == nullptr) {
+        ERR_PRINT("DetourNavigation: Source chunk must be a MeshInstance3D.");
+        return false;
+    }
+
+    Ref<Mesh> mesh_to_convert = mesh_instance->get_mesh();
+    if (mesh_to_convert.is_null()) {
+        ERR_PRINT("DetourNavigation: Source chunk MeshInstance3D does not have a mesh.");
+        return false;
+    }
+
+    if (!_input_geometry->canUseChunkMeshWithinFrozenNavBounds(mesh_instance)) {
+        ERR_PRINT("DetourNavigation: Updated source chunk exceeds the navmesh bounds frozen during initialize(). Reinitialize with larger bounds.");
+        return false;
+    }
+
+    _navigation_mutex->lock();
+    const bool updated = _input_geometry->updateMeshChunk(_recast_context, chunk_id, mesh_instance);
+    _navigation_mutex->unlock();
+    return updated;
+}
+
+bool DetourNavigation::remove_source_geometry_chunk(int chunk_id) {
+    if (!_initialized) {
+        ERR_PRINT("DetourNavigation: Navigation must be initialized before removing source chunks.");
+        return false;
+    }
+
+    _navigation_mutex->lock();
+    const bool removed = _input_geometry->removeMeshChunk(chunk_id);
+    _navigation_mutex->unlock();
+    return removed;
+}
+
+Array DetourNavigation::get_source_geometry_chunk_ids() {
+    return _input_geometry->getChunkIDs();
 }
 
 int DetourNavigation::mark_convex_area(Array vertices, float height, unsigned int area_type) {

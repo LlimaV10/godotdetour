@@ -59,6 +59,27 @@ MeshDataAccumulator::~MeshDataAccumulator()
 }
 
 void
+MeshDataAccumulator::clear()
+{
+    _vertices.clear();
+    _triangles.clear();
+    _normals.clear();
+}
+
+void
+MeshDataAccumulator::append(const MeshDataAccumulator &other)
+{
+    const int vertex_offset = getVertCount();
+    _vertices.insert(_vertices.end(), other._vertices.begin(), other._vertices.end());
+    _normals.insert(_normals.end(), other._normals.begin(), other._normals.end());
+    _triangles.reserve(_triangles.size() + other._triangles.size());
+    for (int index : other._triangles)
+    {
+        _triangles.push_back(index + vertex_offset);
+    }
+}
+
+void
 MeshDataAccumulator::save(const Ref<FileAccess> &targetFile)
 {
     // Store version

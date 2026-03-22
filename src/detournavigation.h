@@ -64,6 +64,10 @@ public:
     bool initialize(const Variant &input_mesh_instance, const Ref<DetourNavigationParameters> &parameters);
     void tick(float delta_seconds = -1.0f);
     void rebuild_changed_tiles();
+    int add_source_geometry_chunk(const Variant &input_mesh_instance);
+    bool update_source_geometry_chunk(int chunk_id, const Variant &input_mesh_instance);
+    bool remove_source_geometry_chunk(int chunk_id);
+    Array get_source_geometry_chunk_ids();
     int mark_convex_area(Array vertices, float height, unsigned int area_type);
     void remove_convex_area_marker(int id);
     int add_off_mesh_connection(Vector3 from, Vector3 to, bool bidirectional, float radius, int area_type);

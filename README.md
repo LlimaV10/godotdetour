@@ -33,6 +33,7 @@ What currently works in this fork:
 - temporary obstacles
 - convex area marking and selective tile rebuilds
 - off-mesh connections
+- chunk-based source geometry inside fixed horizontal nav bounds
 - threaded navigation updates
 - external-position agent mode, where Godot can own actual movement and the addon provides steering velocity
 
@@ -43,7 +44,7 @@ What is still rough or incomplete:
 - some legacy Godot 3 files are still present in the addon folder as leftovers
 - some old signals are bound but not currently emitted in the runtime path
 - documentation from the original project is outdated unless explicitly updated for this fork
-- true runtime chunk streaming of base geometry is not implemented through the public API
+- expanding navmesh bounds at runtime is not supported; chunk updates must stay inside the horizontal bounds frozen during initialization
 
 ## Important differences from the original project
 
@@ -118,13 +119,19 @@ For full addon usage documentation, see:
 
 ## Current API notes
 
-- `DetourNavigation.initialize(mesh_instance, params)` builds from a single `MeshInstance3D`.
+- `DetourNavigation.initialize(mesh_instance, params)` builds from a single `MeshInstance3D` or an `Array[MeshInstance3D]`.
 - Internally the navmesh is tiled.
 - Partial tile rebuilds currently exist for:
+  - source-geometry chunk changes inside the original horizontal nav bounds
   - convex area markers
   - off-mesh connections
   - dynamic obstacles
-- Arbitrary runtime replacement of base level geometry chunks is not exposed through the public API.
+- Runtime chunk helpers now exist:
+  - `addSourceGeometryChunk()`
+  - `updateSourceGeometryChunk()`
+  - `removeSourceGeometryChunk()`
+  - `getSourceGeometryChunkIDs()`
+- Chunk edits must remain within the horizontal nav bounds established during `initialize()`. Vertical growth is allowed, but a larger X/Z world footprint still requires reinitialization.
 
 Supported area types used by the current fork:
 

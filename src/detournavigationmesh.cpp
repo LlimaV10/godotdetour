@@ -634,6 +634,7 @@ DetourNavigationMesh::rebuildChangedTiles(const std::vector<int>& removedMarkedA
     std::multimap<std::pair<int, int>, std::pair<int, bool> > connectionRef;
     unsigned char volumeFlag = 1;
     unsigned char connectionFlag = 2;
+    unsigned char geometryFlag = 4;
 
     // Iterate over removed marked areas to make sure their tile layers are rebuilt
     for (int i = 0; i < removedMarkedAreaIDs.size(); ++i)
@@ -652,6 +653,42 @@ DetourNavigationMesh::rebuildChangedTiles(const std::vector<int>& removedMarkedA
         {
             changedTiles[affectedTileLayers.tilePos][affectedTileLayers.layers[j].layer] = affectedTileLayers.layers[j];
         }
+    }
+
+    auto mark_geometry_bounds = [&](const DetourInputGeometry::GeometryChunkBounds &bounds) {
+        int leftMost = (bounds.bmin[0] - bmin[0]) / singleTileWidth;
+        int rightMost = (bounds.bmax[0] - bmin[0]) / singleTileWidth;
+        int frontMost = (bounds.bmin[2] - bmin[2]) / singleTileDepth;
+        int backMost = (bounds.bmax[2] - bmin[2]) / singleTileDepth;
+
+        if (leftMost < 0) leftMost = 0;
+        if (rightMost > numTilesX - 1) rightMost = numTilesX - 1;
+        if (frontMost < 0) frontMost = 0;
+        if (backMost > numTilesZ - 1) backMost = numTilesZ - 1;
+        if (leftMost > rightMost || frontMost > backMost)
+        {
+            return;
+        }
+
+        for (int x = leftMost; x <= rightMost; ++x)
+        {
+            for (int z = frontMost; z <= backMost; ++z)
+            {
+                std::pair<int, int> tilePos = std::make_pair(x, z);
+                int& flag = tilePositions[tilePos];
+                flag |= geometryFlag;
+                changedTiles[tilePos];
+            }
+        }
+    };
+
+    for (const auto &entry : _inputGeom->getChangedChunks())
+    {
+        mark_geometry_bounds(entry.second);
+    }
+    for (const auto &entry : _inputGeom->getRemovedChunks())
+    {
+        mark_geometry_bounds(entry.second);
     }
 
     // Iterate over all volumes to collect their tile positions
@@ -733,6 +770,7 @@ DetourNavigationMesh::rebuildChangedTiles(const std::vector<int>& removedMarkedA
         std::pair<int, int> tilePos = entry.first;
         bool isVolume = entry.second & volumeFlag;
         bool isConnection = entry.second & connectionFlag;
+        bool isGeometry = entry.second & geometryFlag;
 
         // Initialize Y spans
         if (changedPosData.find(tilePos) == changedPosData.end())
@@ -753,7 +791,51 @@ DetourNavigationMesh::rebuildChangedTiles(const std::vector<int>& removedMarkedA
         float lowestAvg = 1000000.0f;
         float highestAvg = -1000000.0f;
         int lowestLayer = 100000;
-        if (numVerticalTiles <= 3)
+        if (isGeometry)
+        {
+            lowestLayer = 0;
+            for (int j = 0; j < numVerticalTiles; ++j)
+            {
+                const dtCompressedTile* verticalTile = _tileCache->getTileByRef(tileRefs[j]);
+                float tileMinY = verticalTile->header->bmin[1];
+                float tileMaxY = verticalTile->header->bmax[1];
+
+                ChangedTileLayerData data;
+                data.ref = tileRefs[j];
+                data.layer = verticalTile->header->tlayer;
+                data.doAll = true;
+                changedTiles[tilePos][data.layer] = data;
+
+                if (tileMinY < lowestY)
+                {
+                    lowestY = tileMinY;
+                }
+                if (tileMaxY > highestY)
+                {
+                    highestY = tileMaxY;
+                }
+                if (tileMinY < lowestMinY)
+                {
+                    lowestMinY = tileMinY;
+                }
+                if (tileMinY > highestMinY)
+                {
+                    highestMinY = tileMinY;
+                }
+                float avg = (tileMinY + tileMaxY) / 2.0f;
+                if (avg > highestAvg)
+                {
+                    highestAvg = avg;
+                }
+                if (avg < lowestAvg)
+                {
+                    lowestAvg = avg;
+                }
+            }
+            lowestY = bmin[1];
+            highestY = bmax[1];
+        }
+        else if (numVerticalTiles <= 3)
         {
             lowestLayer = 0;
             for (int j = 0; j < numVerticalTiles; ++j)
@@ -993,11 +1075,17 @@ DetourNavigationMesh::rebuildChangedTiles(const std::vector<int>& removedMarkedA
         }
 
         // Rasterize and add the affected layers
-        int maxLayersToAdd = entry.second.size();
+        int maxLayersToAdd = doAllLayers ? _layersPerTile : entry.second.size();
+        if (maxLayersToAdd <= 0)
+        {
+            maxLayersToAdd = _layersPerTile;
+        }
         TileCacheData* tiles = new TileCacheData[maxLayersToAdd];
-        memset(tiles, 0, sizeof(tiles));
+        memset(tiles, 0, sizeof(TileCacheData) * maxLayersToAdd);
         rcConfig adjustedCfg;
         memcpy(&adjustedCfg, _rcConfig, sizeof(rcConfig));
+        adjustedCfg.bmin[1] = bmin[1];
+        adjustedCfg.bmax[1] = bmax[1];
         if (!doAllLayers)
         {
             adjustedCfg.bmin[1] = changedPosData[tilePos].lowestY;
@@ -1006,8 +1094,8 @@ DetourNavigationMesh::rebuildChangedTiles(const std::vector<int>& removedMarkedA
         int ntiles = rasterizeTileLayers(tilePos.first, tilePos.second, adjustedCfg, tiles, maxLayersToAdd);
         if (ntiles == 0)
         {
-            WARN_PRINT("DTNavMesh: rebuildChangedTiles: rasterize yielded 0 tiles.");
-            return;
+            delete [] tiles;
+            continue;
         }
 
 
@@ -1018,8 +1106,15 @@ DetourNavigationMesh::rebuildChangedTiles(const std::vector<int>& removedMarkedA
 
             // Apply layer offset
             // Simply adding the same layer number as those that were removed seems to work, even if the order is now different
-            header->tlayer = removedLayers.back();
-            removedLayers.pop_back();
+            if (!removedLayers.empty())
+            {
+                header->tlayer = removedLayers.back();
+                removedLayers.pop_back();
+            }
+            else
+            {
+                header->tlayer = i;
+            }
             dtStatus status = _tileCache->addTile(tile->data, tile->dataSize, DT_COMPRESSEDTILE_FREE_DATA, 0);
             if (dtStatusFailed(status))
             {

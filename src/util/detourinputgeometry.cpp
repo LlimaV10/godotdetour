@@ -39,7 +39,7 @@
 
 using namespace godot;
 
-#define GEOM_SAVE_DATA_VERSION 1
+#define GEOM_SAVE_DATA_VERSION 2
 
 static bool
 intersectSegmentTriangle(const float* sp, const float* sq,
@@ -123,63 +123,232 @@ DetourInputGeometry::DetourInputGeometry() :
     m_chunkyMesh(0),
     m_mesh(0),
     m_offMeshConCount(0),
-    m_volumeCount(0)
+    m_volumeCount(0),
+    m_nextChunkId(1)
 {
+    memset(m_meshBMin, 0, sizeof(m_meshBMin));
+    memset(m_meshBMax, 0, sizeof(m_meshBMax));
+    memset(m_navMeshBMin, 0, sizeof(m_navMeshBMin));
+    memset(m_navMeshBMax, 0, sizeof(m_navMeshBMax));
 }
 
 DetourInputGeometry::~DetourInputGeometry()
 {
     if (m_chunkyMesh) delete m_chunkyMesh;
     if (m_mesh) delete m_mesh;
+    clearChunks();
 }
 
 bool
 DetourInputGeometry::loadMesh(rcContext* ctx, godot::MeshInstance3D* inputMesh)
 {
-    if (m_mesh)
+    clearData();
+    return addMeshChunk(ctx, inputMesh) >= 0;
+}
+
+int
+DetourInputGeometry::addMeshChunk(rcContext *ctx, godot::MeshInstance3D *inputMesh)
+{
+    MeshDataAccumulator *chunk_mesh = new MeshDataAccumulator(inputMesh);
+    if (chunk_mesh->getVertCount() == 0 || chunk_mesh->getTriCount() == 0)
     {
-        delete m_chunkyMesh;
-        m_chunkyMesh = 0;
-        delete m_mesh;
-        m_mesh = 0;
+        delete chunk_mesh;
+        ERR_PRINT("DetourInputGeometry: Source chunk does not contain triangle geometry.");
+        return -1;
     }
-    m_mesh = new MeshDataAccumulator(inputMesh);
 
-    rcCalcBounds(m_mesh->getVerts(), m_mesh->getVertCount(), m_meshBMin, m_meshBMax);
-
-    m_chunkyMesh = new rcChunkyTriMesh;
-    if (!m_chunkyMesh)
+    GeometryChunk chunk;
+    chunk.id = m_nextChunkId++;
+    chunk.mesh = chunk_mesh;
+    if (!buildChunkBounds(*chunk_mesh, chunk.bmin, chunk.bmax))
     {
-        ERR_PRINT("Out of memory 'm_chunkyMesh'.");
+        delete chunk_mesh;
+        ERR_PRINT("DetourInputGeometry: Unable to calculate source chunk bounds.");
+        return -1;
+    }
+
+    m_chunks[chunk.id] = chunk;
+    m_changedChunks[chunk.id] = { { chunk.bmin[0], chunk.bmin[1], chunk.bmin[2] }, { chunk.bmax[0], chunk.bmax[1], chunk.bmax[2] } };
+    if (!rebuildCombinedMesh(ctx))
+    {
+        delete m_chunks[chunk.id].mesh;
+        m_chunks.erase(chunk.id);
+        m_changedChunks.erase(chunk.id);
+        return -1;
+    }
+
+    return chunk.id;
+}
+
+bool
+DetourInputGeometry::updateMeshChunk(rcContext *ctx, int chunkId, godot::MeshInstance3D *inputMesh)
+{
+    auto existing = m_chunks.find(chunkId);
+    if (existing == m_chunks.end())
+    {
+        ERR_PRINT(String("DetourInputGeometry: Unknown source chunk ID: {0}").format(Array::make(chunkId)));
         return false;
     }
-    if (!rcCreateChunkyTriMesh(m_mesh->getVerts(), m_mesh->getTris(), m_mesh->getTriCount(), 256, m_chunkyMesh))
+
+    MeshDataAccumulator *replacement = new MeshDataAccumulator(inputMesh);
+    if (replacement->getVertCount() == 0 || replacement->getTriCount() == 0)
     {
-        ERR_PRINT("Failed to build chunky mesh.");
+        delete replacement;
+        ERR_PRINT("DetourInputGeometry: Updated source chunk does not contain triangle geometry.");
+        return false;
+    }
+
+    GeometryChunkBounds old_bounds = { { existing->second.bmin[0], existing->second.bmin[1], existing->second.bmin[2] },
+                                       { existing->second.bmax[0], existing->second.bmax[1], existing->second.bmax[2] } };
+    float new_bmin[3];
+    float new_bmax[3];
+    if (!buildChunkBounds(*replacement, new_bmin, new_bmax))
+    {
+        delete replacement;
+        ERR_PRINT("DetourInputGeometry: Unable to calculate updated source chunk bounds.");
+        return false;
+    }
+
+    delete existing->second.mesh;
+    existing->second.mesh = replacement;
+    rcVcopy(existing->second.bmin, new_bmin);
+    rcVcopy(existing->second.bmax, new_bmax);
+    m_changedChunks[chunkId] = { { new_bmin[0], new_bmin[1], new_bmin[2] }, { new_bmax[0], new_bmax[1], new_bmax[2] } };
+    m_removedChunks[chunkId] = old_bounds;
+
+    if (!rebuildCombinedMesh(ctx))
+    {
         return false;
     }
 
     return true;
 }
 
+bool
+DetourInputGeometry::removeMeshChunk(int chunkId)
+{
+    auto existing = m_chunks.find(chunkId);
+    if (existing == m_chunks.end())
+    {
+        ERR_PRINT(String("DetourInputGeometry: Unknown source chunk ID: {0}").format(Array::make(chunkId)));
+        return false;
+    }
+    if (m_chunks.size() <= 1)
+    {
+        ERR_PRINT("DetourInputGeometry: Refusing to remove the last source chunk. Clear the navigation instance instead.");
+        return false;
+    }
+
+    m_removedChunks[chunkId] = { { existing->second.bmin[0], existing->second.bmin[1], existing->second.bmin[2] },
+                                 { existing->second.bmax[0], existing->second.bmax[1], existing->second.bmax[2] } };
+    delete existing->second.mesh;
+    m_chunks.erase(existing);
+    return rebuildCombinedMesh(nullptr);
+}
+
+bool
+DetourInputGeometry::hasChunks() const
+{
+    return !m_chunks.empty();
+}
+
+Array
+DetourInputGeometry::getChunkIDs() const
+{
+    Array ids;
+    for (const auto &entry : m_chunks)
+    {
+        ids.append(entry.first);
+    }
+    return ids;
+}
+
+void
+DetourInputGeometry::freezeNavMeshBounds()
+{
+    m_navMeshBMin[0] = m_meshBMin[0];
+    m_navMeshBMin[2] = m_meshBMin[2];
+    m_navMeshBMax[0] = m_meshBMax[0];
+    m_navMeshBMax[2] = m_meshBMax[2];
+    m_navMeshBMin[1] = m_meshBMin[1];
+    m_navMeshBMax[1] = m_meshBMax[1];
+}
+
+bool
+DetourInputGeometry::isWithinFrozenNavMeshBounds(const float *bmin, const float *bmax) const
+{
+    const bool frozen = m_navMeshBMin[0] != m_navMeshBMax[0] || m_navMeshBMin[2] != m_navMeshBMax[2];
+    if (!frozen)
+    {
+        return true;
+    }
+
+    const float eps = 0.001f;
+    return bmin[0] >= m_navMeshBMin[0] - eps &&
+           bmin[2] >= m_navMeshBMin[2] - eps &&
+           bmax[0] <= m_navMeshBMax[0] + eps &&
+           bmax[2] <= m_navMeshBMax[2] + eps;
+}
+
+bool
+DetourInputGeometry::canUseChunkMeshWithinFrozenNavBounds(godot::MeshInstance3D *inputMesh, float *out_bmin, float *out_bmax) const
+{
+    MeshDataAccumulator chunk_mesh(inputMesh);
+    float bmin[3];
+    float bmax[3];
+    if (!buildChunkBounds(chunk_mesh, bmin, bmax))
+    {
+        return false;
+    }
+
+    if (out_bmin)
+    {
+        rcVcopy(out_bmin, bmin);
+    }
+    if (out_bmax)
+    {
+        rcVcopy(out_bmax, bmax);
+    }
+    return isWithinFrozenNavMeshBounds(bmin, bmax);
+}
+
+void
+DetourInputGeometry::clearChunkChanges()
+{
+    m_changedChunks.clear();
+    m_removedChunks.clear();
+}
+
 void
 DetourInputGeometry::clearData()
 {
-    if (m_mesh)
+    if (m_chunkyMesh)
     {
         delete m_chunkyMesh;
         m_chunkyMesh = 0;
+    }
+    if (m_mesh)
+    {
         delete m_mesh;
         m_mesh = 0;
     }
+    clearChunks();
+    clearChunkChanges();
+    m_nextChunkId = 1;
+    m_offMeshConCount = 0;
+    m_volumeCount = 0;
+    memset(m_meshBMin, 0, sizeof(m_meshBMin));
+    memset(m_meshBMax, 0, sizeof(m_meshBMax));
+    memset(m_navMeshBMin, 0, sizeof(m_navMeshBMin));
+    memset(m_navMeshBMax, 0, sizeof(m_navMeshBMax));
 }
 
 bool
 DetourInputGeometry::save(Ref<FileAccess> targetFile)
 {
-    if (m_chunkyMesh == nullptr || m_mesh == nullptr)
+    if (m_mesh == nullptr)
     {
-        ERR_PRINT("DetourInputGeometry: Unable to save. No mesh or chunky mesh.");
+        ERR_PRINT("DetourInputGeometry: Unable to save. No mesh.");
         return false;
     }
 
@@ -193,6 +362,13 @@ DetourInputGeometry::save(Ref<FileAccess> targetFile)
     targetFile->store_float(m_meshBMax[0]);
     targetFile->store_float(m_meshBMax[1]);
     targetFile->store_float(m_meshBMax[2]);
+    targetFile->store_float(m_navMeshBMin[0]);
+    targetFile->store_float(m_navMeshBMin[1]);
+    targetFile->store_float(m_navMeshBMin[2]);
+    targetFile->store_float(m_navMeshBMax[0]);
+    targetFile->store_float(m_navMeshBMax[1]);
+    targetFile->store_float(m_navMeshBMax[2]);
+    targetFile->store_32(m_nextChunkId);
 
     // Store off-mesh connections
     {
@@ -215,38 +391,15 @@ DetourInputGeometry::save(Ref<FileAccess> targetFile)
         }
     }
 
-    // Store chunky mesh
+    // Store source chunks
     {
-        // Properties
-        targetFile->store_32(m_chunkyMesh->maxTrisPerChunk);
-
-        // Nodes
-        targetFile->store_32(m_chunkyMesh->nnodes);
-        for (int i = 0; i < m_chunkyMesh->nnodes; ++i)
+        targetFile->store_32(m_chunks.size());
+        for (const auto &entry : m_chunks)
         {
-            rcChunkyTriMeshNode& node = m_chunkyMesh->nodes[i];
-            targetFile->store_float(node.bmin[0]);
-            targetFile->store_float(node.bmin[1]);
-            targetFile->store_float(node.bmin[2]);
-            targetFile->store_float(node.bmax[0]);
-            targetFile->store_float(node.bmax[1]);
-            targetFile->store_float(node.bmax[2]);
-            targetFile->store_32(node.i);
-            targetFile->store_32(node.n);
-        }
-
-        // Triangles
-        targetFile->store_32(m_chunkyMesh->ntris);
-        for (int i = 0; i < m_chunkyMesh->ntris; ++i)
-        {
-            targetFile->store_32(m_chunkyMesh->tris[i * 3 + 0]);
-            targetFile->store_32(m_chunkyMesh->tris[i * 3 + 1]);
-            targetFile->store_32(m_chunkyMesh->tris[i * 3 + 2]);
+            targetFile->store_32(entry.first);
+            entry.second.mesh->save(targetFile);
         }
     }
-
-    // Store mesh
-    m_mesh->save(targetFile);
 
     // Store volumes
     {
@@ -287,15 +440,7 @@ DetourInputGeometry::load(Ref<FileAccess> sourceFile)
 
     if (version == GEOM_SAVE_DATA_VERSION)
     {
-        if (m_mesh)
-        {
-            delete m_chunkyMesh;
-            m_chunkyMesh = 0;
-            delete m_mesh;
-            m_mesh = 0;
-        }
-        m_mesh = new MeshDataAccumulator();
-        m_chunkyMesh = new rcChunkyTriMesh;
+        clearData();
 
         // Properties
         m_meshBMin[0] = sourceFile->get_float();
@@ -304,6 +449,13 @@ DetourInputGeometry::load(Ref<FileAccess> sourceFile)
         m_meshBMax[0] = sourceFile->get_float();
         m_meshBMax[1] = sourceFile->get_float();
         m_meshBMax[2] = sourceFile->get_float();
+        m_navMeshBMin[0] = sourceFile->get_float();
+        m_navMeshBMin[1] = sourceFile->get_float();
+        m_navMeshBMin[2] = sourceFile->get_float();
+        m_navMeshBMax[0] = sourceFile->get_float();
+        m_navMeshBMax[1] = sourceFile->get_float();
+        m_navMeshBMax[2] = sourceFile->get_float();
+        m_nextChunkId = sourceFile->get_32();
 
         // Off-mesh connections
         {
@@ -326,43 +478,28 @@ DetourInputGeometry::load(Ref<FileAccess> sourceFile)
             }
         }
 
-        // Chunky mesh
+        // Source chunks
         {
-            // Properties
-            m_chunkyMesh->maxTrisPerChunk = sourceFile->get_32();
-
-            // Nodes
-            m_chunkyMesh->nnodes = sourceFile->get_32();
-            m_chunkyMesh->nodes = new rcChunkyTriMeshNode[m_chunkyMesh->nnodes];
-            for (int i = 0; i < m_chunkyMesh->nnodes; ++i)
+            int chunk_count = sourceFile->get_32();
+            for (int i = 0; i < chunk_count; ++i)
             {
-                rcChunkyTriMeshNode& node = m_chunkyMesh->nodes[i];
-                node.bmin[0] = sourceFile->get_float();
-                node.bmin[1] = sourceFile->get_float();
-                node.bmin[2] = sourceFile->get_float();
-                node.bmax[0] = sourceFile->get_float();
-                node.bmax[1] = sourceFile->get_float();
-                node.bmax[2] = sourceFile->get_float();
-                node.i = sourceFile->get_32();
-                node.n = sourceFile->get_32();
+                GeometryChunk chunk;
+                chunk.id = sourceFile->get_32();
+                chunk.mesh = new MeshDataAccumulator();
+                if (!chunk.mesh->load(sourceFile))
+                {
+                    ERR_PRINT("DetourInputGeometry: Unable to load source chunk mesh.");
+                    delete chunk.mesh;
+                    return false;
+                }
+                if (!buildChunkBounds(*chunk.mesh, chunk.bmin, chunk.bmax))
+                {
+                    ERR_PRINT("DetourInputGeometry: Unable to calculate loaded source chunk bounds.");
+                    delete chunk.mesh;
+                    return false;
+                }
+                m_chunks[chunk.id] = chunk;
             }
-
-            // Triangles
-            m_chunkyMesh->ntris = sourceFile->get_32();
-            m_chunkyMesh->tris = new int[m_chunkyMesh->ntris * 3];
-            for (int i = 0; i < m_chunkyMesh->ntris; ++i)
-            {
-                m_chunkyMesh->tris[i * 3 + 0] = sourceFile->get_32();
-                m_chunkyMesh->tris[i * 3 + 1] = sourceFile->get_32();
-                m_chunkyMesh->tris[i * 3 + 2] = sourceFile->get_32();
-            }
-        }
-
-        // Mesh
-        if (!m_mesh->load(sourceFile))
-        {
-            ERR_PRINT("DetourInputGeometry: Unable to load mesh.");
-            return false;
         }
 
         // Volumes
@@ -392,6 +529,118 @@ DetourInputGeometry::load(Ref<FileAccess> sourceFile)
                 }
             }
         }
+
+        if (!rebuildCombinedMesh(nullptr))
+        {
+            ERR_PRINT("DetourInputGeometry: Unable to rebuild combined source geometry after loading.");
+            return false;
+        }
+    }
+    else if (version == 1)
+    {
+        clearData();
+
+        m_meshBMin[0] = sourceFile->get_float();
+        m_meshBMin[1] = sourceFile->get_float();
+        m_meshBMin[2] = sourceFile->get_float();
+        m_meshBMax[0] = sourceFile->get_float();
+        m_meshBMax[1] = sourceFile->get_float();
+        m_meshBMax[2] = sourceFile->get_float();
+        rcVcopy(m_navMeshBMin, m_meshBMin);
+        rcVcopy(m_navMeshBMax, m_meshBMax);
+
+        {
+            m_offMeshConCount = sourceFile->get_32();
+            for (int i = 0; i < m_offMeshConCount; ++i)
+            {
+                m_offMeshConRads[i] = sourceFile->get_float();
+                m_offMeshConDirs[i] = sourceFile->get_8();
+                m_offMeshConAreas[i] = sourceFile->get_8();
+                m_offMeshConFlags[i] = sourceFile->get_16();
+                m_offMeshConId[i] = sourceFile->get_32();
+                m_offMeshConNew[i] = sourceFile->get_8();
+
+                m_offMeshConVerts[i * 3 + 0] = sourceFile->get_float();
+                m_offMeshConVerts[i * 3 + 1] = sourceFile->get_float();
+                m_offMeshConVerts[i * 3 + 2] = sourceFile->get_float();
+                m_offMeshConVerts[i * 3 + 3] = sourceFile->get_float();
+                m_offMeshConVerts[i * 3 + 4] = sourceFile->get_float();
+                m_offMeshConVerts[i * 3 + 5] = sourceFile->get_float();
+            }
+        }
+
+        rcChunkyTriMesh *legacy_chunky = new rcChunkyTriMesh;
+        legacy_chunky->maxTrisPerChunk = sourceFile->get_32();
+        legacy_chunky->nnodes = sourceFile->get_32();
+        legacy_chunky->nodes = new rcChunkyTriMeshNode[legacy_chunky->nnodes];
+        for (int i = 0; i < legacy_chunky->nnodes; ++i)
+        {
+            rcChunkyTriMeshNode& node = legacy_chunky->nodes[i];
+            node.bmin[0] = sourceFile->get_float();
+            node.bmin[1] = sourceFile->get_float();
+            node.bmin[2] = sourceFile->get_float();
+            node.bmax[0] = sourceFile->get_float();
+            node.bmax[1] = sourceFile->get_float();
+            node.bmax[2] = sourceFile->get_float();
+            node.i = sourceFile->get_32();
+            node.n = sourceFile->get_32();
+        }
+        legacy_chunky->ntris = sourceFile->get_32();
+        legacy_chunky->tris = new int[legacy_chunky->ntris * 3];
+        for (int i = 0; i < legacy_chunky->ntris; ++i)
+        {
+            legacy_chunky->tris[i * 3 + 0] = sourceFile->get_32();
+            legacy_chunky->tris[i * 3 + 1] = sourceFile->get_32();
+            legacy_chunky->tris[i * 3 + 2] = sourceFile->get_32();
+        }
+
+        MeshDataAccumulator *legacy_mesh = new MeshDataAccumulator();
+        if (!legacy_mesh->load(sourceFile))
+        {
+            delete legacy_chunky;
+            delete legacy_mesh;
+            ERR_PRINT("DetourInputGeometry: Unable to load legacy mesh.");
+            return false;
+        }
+
+        {
+            m_volumeCount = sourceFile->get_32();
+            for (int i = 0; i < m_volumeCount; ++i)
+            {
+                ConvexVolume& vol = m_volumes[i];
+                vol.area = sourceFile->get_32();
+                vol.front = sourceFile->get_float();
+                vol.right = sourceFile->get_float();
+                vol.back = sourceFile->get_float();
+                vol.left = sourceFile->get_float();
+                vol.hmin = sourceFile->get_float();
+                vol.hmax = sourceFile->get_float();
+                vol.isNew = sourceFile->get_8();
+                vol.nverts = sourceFile->get_32();
+                for (int j = 0; j < vol.nverts; ++j)
+                {
+                    vol.verts[j * 3 + 0] = sourceFile->get_float();
+                    vol.verts[j * 3 + 1] = sourceFile->get_float();
+                    vol.verts[j * 3 + 2] = sourceFile->get_float();
+                }
+            }
+        }
+
+        GeometryChunk chunk;
+        chunk.id = 1;
+        chunk.mesh = legacy_mesh;
+        rcVcopy(chunk.bmin, m_meshBMin);
+        rcVcopy(chunk.bmax, m_meshBMax);
+        m_chunks[chunk.id] = chunk;
+        m_nextChunkId = 2;
+
+        if (!rebuildCombinedMesh(nullptr))
+        {
+            delete legacy_chunky;
+            ERR_PRINT("DetourInputGeometry: Unable to rebuild combined source geometry from legacy data.");
+            return false;
+        }
+        delete legacy_chunky;
     }
     else {
         ERR_PRINT(String("DetourInputGeometry: Unknown save data version: {0}").format(Array::make(version)));
@@ -399,6 +648,79 @@ DetourInputGeometry::load(Ref<FileAccess> sourceFile)
     }
 
     return true;
+}
+
+bool
+DetourInputGeometry::rebuildCombinedMesh(rcContext *ctx)
+{
+    (void)ctx;
+
+    if (m_chunkyMesh)
+    {
+        delete m_chunkyMesh;
+        m_chunkyMesh = 0;
+    }
+    if (m_mesh)
+    {
+        delete m_mesh;
+        m_mesh = 0;
+    }
+
+    if (m_chunks.empty())
+    {
+        return true;
+    }
+
+    m_mesh = new MeshDataAccumulator();
+    for (const auto &entry : m_chunks)
+    {
+        m_mesh->append(*entry.second.mesh);
+    }
+
+    if (m_mesh->getVertCount() == 0 || m_mesh->getTriCount() == 0)
+    {
+        ERR_PRINT("DetourInputGeometry: Combined source geometry is empty.");
+        return false;
+    }
+
+    rcCalcBounds(m_mesh->getVerts(), m_mesh->getVertCount(), m_meshBMin, m_meshBMax);
+    m_navMeshBMin[1] = m_meshBMin[1];
+    m_navMeshBMax[1] = m_meshBMax[1];
+
+    m_chunkyMesh = new rcChunkyTriMesh;
+    if (!m_chunkyMesh)
+    {
+        ERR_PRINT("Out of memory 'm_chunkyMesh'.");
+        return false;
+    }
+    if (!rcCreateChunkyTriMesh(m_mesh->getVerts(), m_mesh->getTris(), m_mesh->getTriCount(), 256, m_chunkyMesh))
+    {
+        ERR_PRINT("Failed to build chunky mesh.");
+        return false;
+    }
+
+    return true;
+}
+
+bool
+DetourInputGeometry::buildChunkBounds(const MeshDataAccumulator &mesh, float *bmin, float *bmax) const
+{
+    if (mesh.getVertCount() == 0)
+    {
+        return false;
+    }
+    rcCalcBounds(mesh.getVerts(), mesh.getVertCount(), bmin, bmax);
+    return true;
+}
+
+void
+DetourInputGeometry::clearChunks()
+{
+    for (auto &entry : m_chunks)
+    {
+        delete entry.second.mesh;
+    }
+    m_chunks.clear();
 }
 
 static bool

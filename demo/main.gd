@@ -5,6 +5,10 @@ const AGENT_COUNT := 3
 @onready var info_label: RichTextLabel = $CanvasLayer/Control/Info
 @onready var status_label: RichTextLabel = $CanvasLayer/Control/Status
 @onready var ground_mesh_instance: MeshInstance3D = $Ground
+@onready var chunk2_instance: MeshInstance3D = $Chunk2
+@onready var chunk2_mod_instance: MeshInstance3D = $Chunk2_modified
+@onready var new_box_chunk: MeshInstance3D = $NewBoxChunk
+@onready var new_box_chunk2: MeshInstance3D = $NewBoxChunk2
 @onready var start_marker: Marker3D = $Start
 @onready var target_a_marker: Marker3D = $TargetA
 @onready var target_b_marker: Marker3D = $TargetB
@@ -93,7 +97,7 @@ func _initialize_navigation() -> void:
 		5: 3.0,
 	}
 
-	var ok := navigation.initialize(ground_mesh_instance, nav_params)
+	var ok := navigation.initialize([ground_mesh_instance, chunk2_instance], nav_params)
 	if not ok:
 		status_label.text = "Initialization failed."
 		push_error("DetourNavigation failed to initialize.")
@@ -109,6 +113,22 @@ func _initialize_navigation() -> void:
 	]
 	navigation.markConvexArea(area_vertices, 0.8, 4)
 	navigation.rebuildChangedTiles()
+
+
+func _on_timer_timeout() -> void:
+	chunk2_instance.set("visible", false)
+	chunk2_mod_instance.set("visible", true)
+	print(
+		navigation.updateSourceGeometryChunk(
+			navigation.getSourceGeometryChunkIDs()[1], chunk2_mod_instance
+		)
+	)
+	new_box_chunk.set("visible", true)
+	print(navigation.addSourceGeometryChunk(new_box_chunk))
+	new_box_chunk2.set("visible", true)
+	print(navigation.addSourceGeometryChunk(new_box_chunk2))
+	navigation.rebuildChangedTiles()
+	_draw_debug_mesh()
 
 
 func _spawn_agents() -> void:

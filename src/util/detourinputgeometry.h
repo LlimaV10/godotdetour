@@ -4,6 +4,8 @@
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/mesh_instance3d.hpp>
 
+#include <map>
+
 #include "chunkytrimesh.h"
 
 using namespace godot;
@@ -27,10 +29,23 @@ public:
     static const int MAX_OFFMESH_CONNECTIONS = 256;
     static const int MAX_VOLUMES = 256;
 
+    struct GeometryChunkBounds {
+        float bmin[3];
+        float bmax[3];
+    };
+
 private:
+    struct GeometryChunk {
+        int id = -1;
+        MeshDataAccumulator *mesh = nullptr;
+        float bmin[3] = { 0.0f, 0.0f, 0.0f };
+        float bmax[3] = { 0.0f, 0.0f, 0.0f };
+    };
+
     rcChunkyTriMesh *m_chunkyMesh;
     MeshDataAccumulator *m_mesh;
     float m_meshBMin[3], m_meshBMax[3];
+    float m_navMeshBMin[3], m_navMeshBMax[3];
     float m_offMeshConVerts[MAX_OFFMESH_CONNECTIONS * 3 * 2];
     float m_offMeshConRads[MAX_OFFMESH_CONNECTIONS];
     unsigned char m_offMeshConDirs[MAX_OFFMESH_CONNECTIONS];
@@ -41,12 +56,25 @@ private:
     int m_offMeshConCount;
     ConvexVolume m_volumes[MAX_VOLUMES];
     int m_volumeCount;
+    int m_nextChunkId;
+    std::map<int, GeometryChunk> m_chunks;
+    std::map<int, GeometryChunkBounds> m_changedChunks;
+    std::map<int, GeometryChunkBounds> m_removedChunks;
 
 public:
     DetourInputGeometry();
     ~DetourInputGeometry();
 
     bool loadMesh(class rcContext *ctx, godot::MeshInstance3D *inputMesh);
+    int addMeshChunk(class rcContext *ctx, godot::MeshInstance3D *inputMesh);
+    bool updateMeshChunk(class rcContext *ctx, int chunkId, godot::MeshInstance3D *inputMesh);
+    bool removeMeshChunk(int chunkId);
+    bool hasChunks() const;
+    godot::Array getChunkIDs() const;
+    void freezeNavMeshBounds();
+    bool isWithinFrozenNavMeshBounds(const float *bmin, const float *bmax) const;
+    bool canUseChunkMeshWithinFrozenNavBounds(godot::MeshInstance3D *inputMesh, float *out_bmin = nullptr, float *out_bmax = nullptr) const;
+    void clearChunkChanges();
     void clearData();
     bool save(Ref<FileAccess> targetFile);
     bool load(Ref<FileAccess> sourceFile);
@@ -54,9 +82,11 @@ public:
     const MeshDataAccumulator *getMesh() const { return m_mesh; }
     const float *getMeshBoundsMin() const { return m_meshBMin; }
     const float *getMeshBoundsMax() const { return m_meshBMax; }
-    const float *getNavMeshBoundsMin() const { return m_meshBMin; }
-    const float *getNavMeshBoundsMax() const { return m_meshBMax; }
+    const float *getNavMeshBoundsMin() const { return m_navMeshBMin; }
+    const float *getNavMeshBoundsMax() const { return m_navMeshBMax; }
     const rcChunkyTriMesh *getChunkyMesh() const { return m_chunkyMesh; }
+    const std::map<int, GeometryChunkBounds> &getChangedChunks() const { return m_changedChunks; }
+    const std::map<int, GeometryChunkBounds> &getRemovedChunks() const { return m_removedChunks; }
     bool raycastMesh(float *src, float *dst, float &tmin);
 
     int getOffMeshConnectionCount() const { return m_offMeshConCount; }
@@ -78,6 +108,9 @@ public:
     void drawConvexVolumes(struct duDebugDraw *dd, bool hilight = false);
 
 private:
+    bool rebuildCombinedMesh(class rcContext *ctx);
+    bool buildChunkBounds(const MeshDataAccumulator &mesh, float *bmin, float *bmax) const;
+    void clearChunks();
     DetourInputGeometry(const DetourInputGeometry &);
     DetourInputGeometry &operator=(const DetourInputGeometry &);
 };

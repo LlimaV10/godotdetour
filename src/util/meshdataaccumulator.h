@@ -17,6 +17,8 @@ public:
     const int *getTris();
     int getTriCount();
     const float *getNormals();
+    void clear();
+    void append(const MeshDataAccumulator &other);
     void save(const godot::Ref<godot::FileAccess> &targetFile);
     bool load(const godot::Ref<godot::FileAccess> &sourceFile);
 
