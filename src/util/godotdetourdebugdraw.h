@@ -6,7 +6,10 @@
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/material.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
-#include <godot_cpp/classes/surface_tool.hpp>
+#include <godot_cpp/variant/color.hpp>
+#include <godot_cpp/variant/packed_color_array.hpp>
+#include <godot_cpp/variant/packed_vector2_array.hpp>
+#include <godot_cpp/variant/packed_vector3_array.hpp>
 
 class GodotDetourDebugDraw : public duDebugDraw {
 public:
@@ -29,13 +32,23 @@ public:
     virtual void end();
 
 private:
-    godot::Ref<godot::SurfaceTool> _surface_tool;
+    struct DebugSurfaceData {
+        godot::PackedVector3Array vertices;
+        godot::PackedColorArray colors;
+        godot::PackedVector2Array uvs;
+        bool has_uv = false;
+    };
+
+    void append_vertex(const godot::Vector3 &position, const godot::Color &color, const godot::Vector2 *uv = nullptr);
+    godot::Ref<godot::ArrayMesh> build_array_mesh();
+    DebugSurfaceData *get_current_surface();
+
     godot::Ref<godot::StandardMaterial3D> _material;
     godot::Ref<godot::ArrayMesh> _array_mesh;
+    DebugSurfaceData _points;
+    DebugSurfaceData _lines;
+    DebugSurfaceData _tris;
+    duDebugDrawPrimitives _current_primitive = DU_DRAW_TRIS;
 };
-
-inline godot::Ref<godot::ArrayMesh> GodotDetourDebugDraw::getArrayMesh() {
-    return _array_mesh;
-}
 
 #endif // GODOTDETOURDEBUGDRAW_H

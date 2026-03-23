@@ -1,6 +1,7 @@
 #include "godotdetourdebugdraw.h"
 #include <godot_cpp/classes/base_material3d.hpp>
 #include <godot_cpp/classes/mesh.hpp>
+#include <godot_cpp/variant/array.hpp>
 #include "navigationmeshhelpers.h"
 
 using namespace godot;
@@ -23,8 +24,6 @@ godotColorFromDetourColor(unsigned int input)
 
 GodotDetourDebugDraw::GodotDetourDebugDraw()
 {
-    _surface_tool.instantiate();
-
     // Create the material
     Ref<StandardMaterial3D> mat;
     mat.instantiate();
@@ -41,7 +40,6 @@ GodotDetourDebugDraw::GodotDetourDebugDraw()
 GodotDetourDebugDraw::~GodotDetourDebugDraw()
 {
     _material.unref();
-    _surface_tool.unref();
 }
 
 void
@@ -54,6 +52,9 @@ void
 GodotDetourDebugDraw::clear()
 {
     _array_mesh.unref();
+    _points = DebugSurfaceData();
+    _lines = DebugSurfaceData();
+    _tris = DebugSurfaceData();
 }
 
 void
@@ -145,61 +146,112 @@ GodotDetourDebugDraw::texture(bool state)
 void
 GodotDetourDebugDraw::begin(duDebugDrawPrimitives prim, float size)
 {
-    // Begin & set size if applicable
-    switch (prim)
-    {
-        case DU_DRAW_POINTS:
-            _surface_tool->begin(Mesh::PRIMITIVE_POINTS);
-            _material->set_point_size(size * 1.5f);
-            break;
-        case DU_DRAW_LINES:
-            _surface_tool->begin(Mesh::PRIMITIVE_LINES);
-            break;
-        case DU_DRAW_TRIS:
-            _surface_tool->begin(Mesh::PRIMITIVE_TRIANGLES);
-            break;
-        case DU_DRAW_QUADS:
-            WARN_PRINT("Trying to use primitive type quad. Not supported by Godot. Use triangle_strip instead - will look messy!");
-            _surface_tool->begin(Mesh::PRIMITIVE_TRIANGLE_STRIP);
-            break;
-    };
-
-    // Set the material
-    _surface_tool->set_material(_material->duplicate(true));
+    (void)size;
+    _current_primitive = prim;
 }
 
 void
 GodotDetourDebugDraw::vertex(const float* pos, unsigned int color)
 {
-    _surface_tool->set_color(godotColorFromDetourColor(color));
-    _surface_tool->add_vertex(Vector3(pos[0], pos[1], pos[2]));
+    append_vertex(Vector3(pos[0], pos[1], pos[2]), godotColorFromDetourColor(color));
 }
 
 void
 GodotDetourDebugDraw::vertex(const float x, const float y, const float z, unsigned int color)
 {
-    _surface_tool->set_color(godotColorFromDetourColor(color));
-    _surface_tool->add_vertex(Vector3(x, y, z));
+    append_vertex(Vector3(x, y, z), godotColorFromDetourColor(color));
 }
 
 void
 GodotDetourDebugDraw::vertex(const float* pos, unsigned int color, const float* uv)
 {
-    _surface_tool->set_color(godotColorFromDetourColor(color));
-    _surface_tool->set_uv(Vector2(uv[0], uv[1]));
-    _surface_tool->add_vertex(Vector3(pos[0], pos[1], pos[2]));
+    const Vector2 uv_value(uv[0], uv[1]);
+    append_vertex(Vector3(pos[0], pos[1], pos[2]), godotColorFromDetourColor(color), &uv_value);
 }
 
 void
 GodotDetourDebugDraw::vertex(const float x, const float y, const float z, unsigned int color, const float u, const float v)
 {
-    _surface_tool->set_color(godotColorFromDetourColor(color));
-    _surface_tool->set_uv(Vector2(u, v));
-    _surface_tool->add_vertex(Vector3(x, y, z));
+    const Vector2 uv_value(u, v);
+    append_vertex(Vector3(x, y, z), godotColorFromDetourColor(color), &uv_value);
 }
 
 void
 GodotDetourDebugDraw::end()
 {
-    _array_mesh = _surface_tool->commit(_array_mesh);
+}
+
+void
+GodotDetourDebugDraw::append_vertex(const Vector3 &position, const Color &color, const Vector2 *uv)
+{
+    DebugSurfaceData *surface = get_current_surface();
+    surface->vertices.push_back(position);
+    surface->colors.push_back(color);
+    if (uv != nullptr)
+    {
+        surface->has_uv = true;
+        surface->uvs.push_back(*uv);
+    }
+    else if (surface->has_uv)
+    {
+        surface->uvs.push_back(Vector2());
+    }
+}
+
+GodotDetourDebugDraw::DebugSurfaceData *
+GodotDetourDebugDraw::get_current_surface()
+{
+    switch (_current_primitive)
+    {
+        case DU_DRAW_POINTS:
+            return &_points;
+        case DU_DRAW_LINES:
+            return &_lines;
+        case DU_DRAW_TRIS:
+            return &_tris;
+        case DU_DRAW_QUADS:
+            WARN_PRINT("Trying to use primitive type quad. Not supported by Godot. Falling back to triangles.");
+            return &_tris;
+        default:
+            return &_tris;
+    }
+}
+
+Ref<ArrayMesh>
+GodotDetourDebugDraw::build_array_mesh()
+{
+    Ref<ArrayMesh> mesh;
+    mesh.instantiate();
+
+    auto add_surface = [&](const DebugSurfaceData &surface, Mesh::PrimitiveType primitive) {
+        if (surface.vertices.is_empty())
+        {
+            return;
+        }
+
+        Array arrays;
+        arrays.resize(Mesh::ARRAY_MAX);
+        arrays[Mesh::ARRAY_VERTEX] = surface.vertices;
+        arrays[Mesh::ARRAY_COLOR] = surface.colors;
+        if (surface.has_uv)
+        {
+            arrays[Mesh::ARRAY_TEX_UV] = surface.uvs;
+        }
+
+        mesh->add_surface_from_arrays(primitive, arrays);
+        mesh->surface_set_material(mesh->get_surface_count() - 1, _material->duplicate(true));
+    };
+
+    add_surface(_points, Mesh::PRIMITIVE_POINTS);
+    add_surface(_lines, Mesh::PRIMITIVE_LINES);
+    add_surface(_tris, Mesh::PRIMITIVE_TRIANGLES);
+    return mesh;
+}
+
+Ref<ArrayMesh> GodotDetourDebugDraw::getArrayMesh() {
+    if (_array_mesh.is_null())
+    {
+        _array_mesh = build_array_mesh();
+    }
+    return _array_mesh;
 }

@@ -124,9 +124,10 @@ void
 GodotGeometryParser::parseGeometry(godot::MeshInstance3D* meshInstance, std::vector<float> &p_vertices, std::vector<int> &p_indices)
 {
     Ref<ArrayMesh> mesh = meshInstance->get_mesh();
+    const Transform3D mesh_transform = meshInstance->get_global_transform();
     if (mesh.is_valid())
     {
-        addMesh(mesh, meshInstance->get_transform(), p_vertices, p_indices);
+        addMesh(mesh, mesh_transform, p_vertices, p_indices);
     }
     else {
         // Not an array mesh, check if we have a primitive mesh to convert
@@ -136,7 +137,7 @@ GodotGeometryParser::parseGeometry(godot::MeshInstance3D* meshInstance, std::vec
             Ref<ArrayMesh> arr_mesh;
             arr_mesh.instantiate();
             arr_mesh->add_surface_from_arrays(Mesh::PRIMITIVE_TRIANGLES, primitive_mesh->get_mesh_arrays());
-            addMesh(arr_mesh, meshInstance->get_transform(), p_vertices, p_indices);
+            addMesh(arr_mesh, mesh_transform, p_vertices, p_indices);
         }
         else {
             ERR_PRINT(String("Mesh not an ArrayMesh or PrimitiveMesh"));

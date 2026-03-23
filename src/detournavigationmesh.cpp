@@ -257,13 +257,23 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
     int cacheLayerCount = 0;
     int cacheCompressedSize = 0;
     int cacheRawSize = 0;
+    int tileColumnsWithLayers = 0;
+    int tileColumnsWithoutLayers = 0;
     for (int y = 0; y < th; ++y)
     {
         for (int x = 0; x < tw; ++x)
         {
             TileCacheData* tiles = new TileCacheData[_maxLayers];
-            memset(tiles, 0, sizeof(tiles));
+            memset(tiles, 0, sizeof(TileCacheData) * _maxLayers);
             int ntiles = rasterizeTileLayers(x, y, cfg, tiles, _maxLayers);
+            if (ntiles > 0)
+            {
+                tileColumnsWithLayers++;
+            }
+            else
+            {
+                tileColumnsWithoutLayers++;
+            }
 
             for (int i = 0; i < ntiles; ++i)
             {
@@ -286,6 +296,8 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
         }
     }
     UtilityFunctions::print("DTNavMeshInitialize: Processed input mesh..");
+    UtilityFunctions::print(String("DTNavMeshInitialize: tile columns with layers={0} empty={1} cache_layers={2}")
+            .format(Array::make(tileColumnsWithLayers, tileColumnsWithoutLayers, cacheLayerCount)));
 
     // Build initial meshes
     _recastContext->startTimer(RC_TIMER_TOTAL);
@@ -308,12 +320,27 @@ DetourNavigationMesh::initialize(DetourInputGeometry* inputGeom, Ref<DetourNavig
     size_t cacheBuildMemUsage = static_cast<unsigned int>(_allocator->high);
     const dtNavMesh* nav = _navMesh;
     int navmeshMemUsage = 0;
+    int activeNavTiles = 0;
     for (int i = 0; i < nav->getMaxTiles(); ++i)
     {
         const dtMeshTile* tile = nav->getTile(i);
         if (tile->header)
+        {
+            activeNavTiles++;
             navmeshMemUsage += tile->dataSize;
+        }
     }
+    int activeCacheTiles = 0;
+    for (int i = 0; i < _tileCache->getTileCount(); ++i)
+    {
+        const dtCompressedTile* tile = _tileCache->getTile(i);
+        if (tile && tile->header)
+        {
+            activeCacheTiles++;
+        }
+    }
+    UtilityFunctions::print(String("DTNavMeshInitialize: active cache tiles={0} active nav tiles={1}")
+            .format(Array::make(activeCacheTiles, activeNavTiles)));
     UtilityFunctions::print(String("DTNavMeshInitialize: navmesh memory usage: {0} bytes").format(Array::make(navmeshMemUsage)));
 
     // Initialize the crowd
@@ -1296,6 +1323,31 @@ DetourNavigationMesh::createDebugMesh(GodotDetourDebugDraw* debugDrawer, bool dr
     // Navmesh itself
     if (_navMesh && _navQuery)
     {
+        int activeNavTiles = 0;
+        const dtNavMesh* nav = _navMesh;
+        for (int i = 0; i < nav->getMaxTiles(); ++i)
+        {
+            const dtMeshTile* tile = nav->getTile(i);
+            if (tile && tile->header)
+            {
+                activeNavTiles++;
+            }
+        }
+        int activeCacheTiles = 0;
+        if (_tileCache)
+        {
+            for (int i = 0; i < _tileCache->getTileCount(); ++i)
+            {
+                const dtCompressedTile* tile = _tileCache->getTile(i);
+                if (tile && tile->header)
+                {
+                    activeCacheTiles++;
+                }
+            }
+        }
+        UtilityFunctions::print(String("DTNavDebug: active cache tiles={0} active nav tiles={1}")
+                .format(Array::make(activeCacheTiles, activeNavTiles)));
+
         unsigned char drawFlags = DU_DRAWNAVMESH_OFFMESHCONS|DU_DRAWNAVMESH_CLOSEDLIST;
         if (!drawCacheBounds)
         {
