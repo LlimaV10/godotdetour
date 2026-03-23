@@ -116,6 +116,19 @@ func addCylinderObstacle(position: Vector3, radius: float, height: float) -> Det
 	return null
 
 
+## Returns the closest position on the navigation mesh to the provided `position`.
+## `extents` defines the search box around the position.
+## `nav_mesh_index` specifies which navigation mesh to use (default is 0).
+## `filter_index` specifies which query filter to use (default is 0).
+func getClosestPoint(
+	position: Vector3,
+	extents: Vector3 = Vector3(5.0, 5.0, 5.0),
+	nav_mesh_index: int = 0,
+	filter_index: int = 0
+) -> Vector3:
+	return position
+
+
 ## Creates a debug `MeshInstance3D` visualizing the generated navmesh.
 func createDebugMesh(index: int, draw_cache_bounds: bool) -> MeshInstance3D:
 	return null

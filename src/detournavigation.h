@@ -73,6 +73,7 @@ public:
     int add_off_mesh_connection(Vector3 from, Vector3 to, bool bidirectional, float radius, int area_type);
     void remove_off_mesh_connection(int id);
     bool set_query_filter(int index, String name, Dictionary weights);
+    Vector3 get_closest_point(Vector3 position, Vector3 extents = Vector3(5.0f, 5.0f, 5.0f), int nav_mesh_index = 0, int filter_index = 0);
     Ref<DetourCrowdAgent> add_agent(const Ref<DetourCrowdAgentParameters> &parameters);
     void remove_agent(const Ref<DetourCrowdAgent> &agent);
     Ref<DetourObstacle> add_cylinder_obstacle(Vector3 position, float radius, float height);

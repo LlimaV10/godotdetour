@@ -9,6 +9,7 @@
 #include <godot_cpp/variant/utility_functions.hpp>
 
 #include <DetourCrowd.h>
+#include <DetourNavMeshQuery.h>
 
 #include <chrono>
 #include <climits>
@@ -54,6 +55,7 @@ void DetourNavigation::_bind_methods() {
     ClassDB::bind_method(D_METHOD("removeAgent", "agent"), &DetourNavigation::remove_agent);
     ClassDB::bind_method(D_METHOD("addBoxObstacle", "position", "dimensions", "rotation_rad"), &DetourNavigation::add_box_obstacle);
     ClassDB::bind_method(D_METHOD("addCylinderObstacle", "position", "radius", "height"), &DetourNavigation::add_cylinder_obstacle);
+    ClassDB::bind_method(D_METHOD("getClosestPoint", "position", "extents", "nav_mesh_index", "filter_index"), &DetourNavigation::get_closest_point, DEFVAL(Vector3(5.0f, 5.0f, 5.0f)), DEFVAL(0), DEFVAL(0));
     ClassDB::bind_method(D_METHOD("createDebugMesh", "index", "draw_cache_bounds"), &DetourNavigation::create_debug_mesh);
     ClassDB::bind_method(D_METHOD("setQueryFilter", "index", "name", "weights"), &DetourNavigation::set_query_filter);
     ClassDB::bind_method(D_METHOD("save", "path", "compressed"), &DetourNavigation::save);
@@ -419,6 +421,37 @@ bool DetourNavigation::set_query_filter(int index, String name, Dictionary weigh
 
     _query_filter_indices[name] = index;
     return true;
+}
+
+Vector3 DetourNavigation::get_closest_point(Vector3 position, Vector3 extents, int nav_mesh_index, int filter_index) {
+    std::lock_guard<std::mutex> lock(*_navigation_mutex);
+    if (!_initialized || nav_mesh_index < 0 || nav_mesh_index >= static_cast<int>(_nav_meshes.size())) {
+        return position;
+    }
+
+    DetourNavigationMesh *nav_mesh = _nav_meshes[nav_mesh_index];
+    dtNavMeshQuery *query = nav_mesh->get_nav_query();
+    dtCrowd *crowd = nav_mesh->get_crowd();
+    if (!query || !crowd) {
+        return position;
+    }
+
+    dtQueryFilter *filter = crowd->getEditableFilter(filter_index);
+    if (!filter) {
+        return position;
+    }
+
+    float pos[3] = { position.x, position.y, position.z };
+    float halfExtents[3] = { extents.x, extents.y, extents.z };
+    dtPolyRef nearestRef = 0;
+    float nearestPt[3];
+
+    dtStatus status = query->findNearestPoly(pos, halfExtents, filter, &nearestRef, nearestPt);
+    if (dtStatusSucceed(status) && nearestRef) {
+        return Vector3(nearestPt[0], nearestPt[1], nearestPt[2]);
+    }
+
+    return position;
 }
 
 Ref<DetourCrowdAgent> DetourNavigation::add_agent(const Ref<DetourCrowdAgentParameters> &parameters) {

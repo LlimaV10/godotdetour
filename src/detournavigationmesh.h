@@ -120,6 +120,7 @@ public:
     void update(float timeDeltaSeconds);
     void createDebugMesh(GodotDetourDebugDraw *debugDrawer, bool drawCacheBounds);
     dtCrowd *getCrowd();
+    dtNavMeshQuery *getNavQuery();
     float getActorFitFactor(float agentRadius, float agentHeight);
 
     bool initialize_crowd() { return initializeCrowd(); }
@@ -128,6 +129,7 @@ public:
     void add_obstacle(const Ref<DetourObstacle> &obstacle) { addObstacle(obstacle); }
     void create_debug_mesh(GodotDetourDebugDraw *debugDrawer, bool drawCacheBounds) { createDebugMesh(debugDrawer, drawCacheBounds); }
     dtCrowd *get_crowd() { return getCrowd(); }
+    dtNavMeshQuery *get_nav_query() { return getNavQuery(); }
     float get_actor_fit_factor(float agentRadius, float agentHeight) { return getActorFitFactor(agentRadius, agentHeight); }
 
 private:
@@ -198,6 +200,7 @@ inline void DetourNavigationMeshParameters::set_detail_sample_distance(float p_v
 inline float DetourNavigationMeshParameters::get_detail_sample_max_error() const { return detailSampleMaxError; }
 inline void DetourNavigationMeshParameters::set_detail_sample_max_error(float p_value) { detailSampleMaxError = p_value; }
 inline dtCrowd *DetourNavigationMesh::getCrowd() { return _crowd; }
+inline dtNavMeshQuery *DetourNavigationMesh::getNavQuery() { return _navQuery; }
 
 } // namespace godot
 
